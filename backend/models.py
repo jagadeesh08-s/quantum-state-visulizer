@@ -25,7 +25,10 @@ class QuantumGate(BaseModel):
     def validate_gate_name(cls, v):
         valid_gates = [
             'H', 'X', 'Y', 'Z', 'S', 'T', 'RX', 'RY', 'RZ',
-            'CNOT', 'CZ', 'SWAP', 'CCNOT', 'FREDKIN'
+            'CNOT', 'CX', 'CY', 'CZ', 'CH', 'CP', 'SWAP', 'CCNOT', 'CCX', 'TOFFOLI',
+            'FREDKIN', 'CSWAP', 'P', 'PHASE', 'U', 'U3', 'U1', 'U2', 'SDG', 'TDG',
+            'SX', 'SXDG', 'SQRTX', 'SQRTZ', 'ID', 'MEASURE',
+            'CRX', 'CRY', 'CRZ', 'RXX', 'RYY', 'RZZ'
         ]
         if v.upper() not in valid_gates:
             raise ValueError(f'Invalid gate name: {v}')
@@ -114,6 +117,7 @@ class IBMExecuteRequest(BaseModel):
     backend: str
     circuit: QuantumCircuit
     shots: int = Field(config.quantum.default_shots, ge=1, le=config.quantum.max_shots)
+    instance: Optional[str] = None  # CRN for IBM Cloud users
 
 
 class IBMExecuteResponse(BaseModel):
@@ -122,6 +126,7 @@ class IBMExecuteResponse(BaseModel):
     jobId: Optional[str] = None
     status: Optional[str] = None
     error: Optional[str] = None
+    qasm: Optional[str] = None  # Single line QASM code
 
 
 class IBMJobStatusResponse(BaseModel):
@@ -220,6 +225,38 @@ class MedicalAnalyzeRequest(BaseModel):
     """Medical analysis request"""
     patientData: Dict[str, Any]
 
+
+class IBMCloudAuthRequest(BaseModel):
+    """IBM Cloud authentication request"""
+    apiKey: str
+    instance: Optional[str] = None  # CRN/Instance ID
+
+
+class WatsonXAuthRequest(BaseModel):
+    """watsonx.ai authentication request"""
+    apiKey: str
+    projectId: Optional[str] = None
+
+class QuantumStudyRequest(BaseModel):
+    """Quantum advantage study request"""
+    algorithmType: str
+    circuit: QuantumCircuit
+    token: str
+    backend: str
+    useWatsonX: bool = True
+
+class QuantumStudyResponse(BaseModel):
+    """Quantum advantage study response"""
+    success: bool
+    jobId: Optional[str] = None
+    optimization: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+class QuantumReportResponse(BaseModel):
+    """Quantum research report response"""
+    success: bool
+    report: str
+    format: str = "markdown"
 
 class ErrorResponse(BaseModel):
     """Standard error response"""

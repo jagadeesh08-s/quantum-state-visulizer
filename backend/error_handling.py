@@ -83,7 +83,7 @@ def generate_error_response(
         error_data["error"]["details"] = error.details
     
     # Log the error
-    container.logger.error(
+    container.logger().error(
         "api_error",
         error_code=error_code or "INTERNAL_ERROR",
         message=str(error),
@@ -117,7 +117,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         }
     }
     
-    container.logger.warning(
+    container.logger().warning(
         "http_exception",
         status_code=exc.status_code,
         detail=exc.detail,
@@ -160,7 +160,7 @@ async def validation_exception_handler(request: Request, exc) -> JSONResponse:
         }
     }
     
-    container.logger.warning(
+    container.logger().warning(
         "validation_error",
         errors=errors,
         request_id=request_id,
@@ -226,7 +226,7 @@ async def not_found_handler(request: Request, exc) -> JSONResponse:
         }
     }
     
-    container.logger.warning(
+    container.logger().warning(
         "endpoint_not_found",
         path=request.url.path,
         method=request.method,

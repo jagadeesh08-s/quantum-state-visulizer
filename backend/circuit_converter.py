@@ -77,6 +77,36 @@ def json_to_quantum_circuit(circuit_json: Dict[str, Any]) -> QuantumCircuit:
                 qc.swap(qubits[0], qubits[1])
             elif name == 'ccx' or name == 'toffoli':
                 qc.ccx(qubits[0], qubits[1], qubits[2])
+            elif name == 'sx' or name == 'sqrtx':
+                qc.sx(qubits[0])
+            elif name == 'sxdg':
+                qc.sxdg(qubits[0])
+            elif name == 'sqrtz':
+                qc.s(qubits[0])
+            elif name == 'id' or name == 'identity':
+                qc.id(qubits[0])
+            elif name == 'crx':
+                angle = params[0] if params else 0
+                qc.crx(angle, qubits[0], qubits[1])
+            elif name == 'cry':
+                angle = params[0] if params else 0
+                qc.cry(angle, qubits[0], qubits[1])
+            elif name == 'crz':
+                angle = params[0] if params else 0
+                qc.crz(angle, qubits[0], qubits[1])
+            elif name == 'rxx':
+                angle = params[0] if params else 0
+                qc.rxx(angle, qubits[0], qubits[1])
+            elif name == 'ryy':
+                angle = params[0] if params else 0
+                qc.ryy(angle, qubits[0], qubits[1])
+            elif name == 'rzz':
+                angle = params[0] if params else 0
+                qc.rzz(angle, qubits[0], qubits[1])
+            elif name == 'u1':
+                qc.u1(params[0], qubits[0])
+            elif name == 'u2':
+                qc.u2(params[0], params[1], qubits[0])
             elif name == 'measure':
                 # Measurements are usually handled by Sampler/Estimator primitives,
                 # but we can add them to the circuit if needed for direct execution.

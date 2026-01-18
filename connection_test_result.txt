@@ -1,0 +1,25 @@
+============================================================
+IBM Quantum Connection Test
+============================================================
+Found token in environment variable.
+
+Testing token: LW-4Ai_asD...
+------------------------------------------------------------
+
+[1/3] Validating token...
+SUCCESS: Token validated successfully!
+   Hub: default
+   Channel: unknown
+
+[2/3] Fetching backends...
+SUCCESS: Found 3 backends:
+   - ibm_fez (156 qubits, online, processor)
+   - ibm_torino (133 qubits, online, processor)
+   - ibm_marrakesh (156 qubits, online, processor)
+
+[3/3] Submitting test job...
+WARN: No online simulators available, skipping job test
+
+============================================================
+SUCCESS: All tests passed! Your IBM Quantum setup is working.
+============================================================

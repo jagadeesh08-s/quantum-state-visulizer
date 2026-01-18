@@ -217,7 +217,8 @@ async def get_health():
     """Enhanced health check endpoint"""
     health_data = await metrics_collector.get_health_status()
 
-    status_code = 200 if health_data["status"] == "healthy" else 503
+    # Return 200 even if degraded (e.g. Redis down) as the app is still functional
+    status_code = 200 if health_data["status"] in ["healthy", "degraded"] else 503
     return JSONResponse(
         content=health_data,
         status_code=status_code

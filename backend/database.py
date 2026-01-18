@@ -44,15 +44,22 @@ def init_database():
     # Use NullPool for SQLite, QueuePool for others
     poolclass = NullPool if "sqlite" in db_url else QueuePool
     
-    _engine = create_async_engine(
-        db_url,
-        poolclass=poolclass,
-        pool_size=config.database.pool_size,
-        max_overflow=config.database.max_overflow,
-        pool_timeout=config.database.pool_timeout,
-        echo=config.database.echo,
-        future=True
-    )
+    # Engine arguments
+    engine_args = {
+        "echo": config.database.echo,
+        "future": True
+    }
+    
+    # Only add pool arguments if not using NullPool
+    if poolclass is not NullPool:
+        engine_args["poolclass"] = poolclass
+        engine_args["pool_size"] = config.database.pool_size
+        engine_args["max_overflow"] = config.database.max_overflow
+        engine_args["pool_timeout"] = config.database.pool_timeout
+    else:
+        engine_args["poolclass"] = NullPool
+
+    _engine = create_async_engine(db_url, **engine_args)
     
     _session_factory = async_sessionmaker(
         _engine,
@@ -62,7 +69,7 @@ def init_database():
         autoflush=False
     )
     
-    container.logger.info("database_initialized", url=db_url.split("@")[-1] if "@" in db_url else db_url)
+    container.logger().info("database_initialized", url=db_url.split("@")[-1] if "@" in db_url else db_url)
 
 
 async def get_session() -> AsyncSession:
@@ -85,7 +92,7 @@ async def create_tables():
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
-    container.logger.info("database_tables_created")
+    container.logger().info("database_tables_created")
 
 
 async def drop_tables():
@@ -96,7 +103,7 @@ async def drop_tables():
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     
-    container.logger.warning("database_tables_dropped")
+    container.logger().warning("database_tables_dropped")
 
 
 async def close_database():
@@ -107,4 +114,4 @@ async def close_database():
         await _engine.dispose()
         _engine = None
         _session_factory = None
-        container.logger.info("database_connections_closed")
+        container.logger().info("database_connections_closed")

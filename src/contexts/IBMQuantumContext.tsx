@@ -13,6 +13,9 @@ interface IBMQuantumContextType {
     logout: () => void;
     setSelectedBackend: (id: string) => void;
     submitJob: (circuit: any, shots?: number) => Promise<void>;
+    runAdvantageStudy: (algorithmType: string, circuit: any) => Promise<void>;
+    authenticateWatsonX: (apiKey: string) => Promise<boolean>;
+    isWatsonXAuthenticated: boolean;
 }
 
 const IBMQuantumContext = createContext<IBMQuantumContextType | undefined>(undefined);
@@ -24,6 +27,7 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const [selectedBackend, setSelectedBackend] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [currentJob, setCurrentJob] = useState<any | null>(null);
+    const [isWatsonXAuthenticated, setIsWatsonXAuthenticated] = useState(false);
 
     // Function to select the best backend automatically
     const selectBestBackend = (backends: any[]) => {
@@ -55,32 +59,32 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setIsLoading(true);
         console.log('[IBM Quantum] 🔐 Starting authentication...');
         console.log('[IBM Quantum] 📡 Token:', t ? `${t.substring(0, 10)}...` : 'MISSING');
-        
+
         try {
             console.log('[IBM Quantum] 🌐 Connecting to backend...');
             const result = await connectToIBM(t);
-            
+
             console.log('[IBM Quantum] 📥 Connection response:', result);
-            
+
             if (result.success) {
                 console.log('[IBM Quantum] ✅ Authentication successful!');
                 console.log('[IBM Quantum] 🏢 Hub:', result.hub || 'default');
-                
+
                 setIsAuthenticated(true);
                 localStorage.setItem('ibm_token', t);
-                
+
                 console.log('[IBM Quantum] 🔍 Fetching available backends...');
                 const backendResult = await getIBMBackends(t);
-                
+
                 console.log('[IBM Quantum] 📥 Backends response:', backendResult);
-                
+
                 if (backendResult.success) {
                     const backendsList = backendResult.backends || [];
                     console.log(`[IBM Quantum] ✅ Found ${backendsList.length} backends`);
                     backendsList.forEach((b: any) => {
                         console.log(`[IBM Quantum]   - ${b.name} (${b.qubits} qubits, ${b.status}, ${b.type})`);
                     });
-                    
+
                     setBackends(backendsList);
                     if (backendsList.length > 0) {
                         // Auto-select the best backend
@@ -144,16 +148,16 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setIsLoading(true);
         try {
             const result = await executeOnIBM(token, selectedBackend, circuit, shots);
-            
+
             console.log('[IBM Quantum] 📥 Job submission response:', result);
-            
+
             if (result.success) {
                 const jobId = result.jobId;
                 const status = result.status;
                 console.log('[IBM Quantum] ✅ Job submitted successfully!');
                 console.log('[IBM Quantum] 📋 Job ID:', jobId);
                 console.log('[IBM Quantum] 📊 Status:', status);
-                
+
                 setCurrentJob({ jobId, status });
                 toast.success(`Job submitted to IBM Quantum (ID: ${jobId.substring(0, 8)}...)`);
                 startPolling(jobId);
@@ -173,40 +177,87 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
     };
 
+    const authenticateWatsonX = async (apiKey: string) => {
+        setIsLoading(true);
+        try {
+            const { authenticateWatsonX: authWatsonX } = await import('@/services/quantumAPI');
+            const result = await authWatsonX(apiKey);
+            if (result.success) {
+                setIsWatsonXAuthenticated(true);
+                toast.success('watsonx.ai authenticated successfully');
+                return true;
+            }
+            toast.error(result.error || 'watsonx.ai authentication failed');
+            return false;
+        } catch (error) {
+            toast.error('Could not authenticate with watsonx.ai');
+            return false;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const runAdvantageStudy = async (algorithmType: string, circuit: any) => {
+        if (!token || !selectedBackend) {
+            toast.error('Please connect to IBM Quantum first');
+            return;
+        }
+
+        setIsLoading(true);
+        console.log(`[Research Platform] 🧪 Running ${algorithmType} study...`);
+
+        try {
+            const { runQuantumStudy } = await import('@/services/quantumAPI');
+            const result = await runQuantumStudy(algorithmType, circuit, token, selectedBackend);
+
+            if (result.success) {
+                toast.success(`Quantum Advantage Study started: ${algorithmType}`);
+                setCurrentJob({ jobId: result.jobId, status: 'RUNNING', isStudy: true });
+                if (result.jobId) startPolling(result.jobId);
+            } else {
+                toast.error(result.error || 'Failed to start study');
+            }
+        } catch (error) {
+            toast.error('Study execution error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const startPolling = (jobId: string) => {
         console.log('[IBM Quantum] 🔄 Starting job polling for:', jobId);
         let pollCount = 0;
         const maxPolls = 100; // Max 5 minutes (100 * 3s)
-        
+
         const interval = setInterval(async () => {
             if (!token) {
                 console.log('[IBM Quantum] ⚠️ Token missing, stopping polling');
                 clearInterval(interval);
                 return;
             }
-            
+
             pollCount++;
             console.log(`[IBM Quantum] 🔍 Polling job status (attempt ${pollCount}/${maxPolls})...`);
-            
+
             try {
                 const result = await getIBMJobStatus(jobId, token);
-                
+
                 console.log('[IBM Quantum] 📥 Job status response:', result);
-                
+
                 setCurrentJob(result);
-                
+
                 const status = result.status;
                 console.log(`[IBM Quantum] 📊 Job status: ${status}`);
-                
+
                 if (status === 'DONE' || status === 'ERROR' || status === 'CANCELLED') {
                     clearInterval(interval);
-                    
+
                     if (status === 'DONE') {
                         const results = result.results;
                         console.log('[IBM Quantum] ✅ Job completed successfully!');
                         console.log('[IBM Quantum] 📊 Results:', results);
                         console.log('[IBM Quantum] ⏱️ Execution time:', result.executionTime || 'N/A', 'seconds');
-                        
+
                         if (results) {
                             const resultKeys = Object.keys(results);
                             console.log(`[IBM Quantum] 📈 Measurement outcomes: ${resultKeys.length}`);
@@ -216,7 +267,7 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                                 console.log(`[IBM Quantum]   ${key}: ${value}`);
                             });
                         }
-                        
+
                         toast.success('IBM Quantum job completed!');
                     } else {
                         console.error(`[IBM Quantum] ❌ Job ${status.toLowerCase()}`);
@@ -237,8 +288,8 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     return (
         <IBMQuantumContext.Provider value={{
-            token, isAuthenticated, backends, selectedBackend, isLoading, currentJob,
-            login, logout, setSelectedBackend, submitJob
+            token, isAuthenticated, backends, selectedBackend, isLoading, currentJob, isWatsonXAuthenticated,
+            login, logout, setSelectedBackend, submitJob, runAdvantageStudy, authenticateWatsonX
         }}>
             {children}
         </IBMQuantumContext.Provider>

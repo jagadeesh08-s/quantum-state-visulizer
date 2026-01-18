@@ -33,7 +33,7 @@ def async_cache(ttl: int = 3600):
             # Try to get from cache
             cached_result = await quantum_cache.backend.get(cache_key)
             if cached_result is not None:
-                container.logger.debug("async_cache_hit", function=func.__name__)
+                container.logger().debug("async_cache_hit", function=func.__name__)
                 return cached_result
             
             # Execute function
@@ -41,7 +41,7 @@ def async_cache(ttl: int = 3600):
             
             # Store in cache
             await quantum_cache.backend.set(cache_key, result, ttl)
-            container.logger.debug("async_cache_miss", function=func.__name__)
+            container.logger().debug("async_cache_miss", function=func.__name__)
             
             return result
         
@@ -171,7 +171,7 @@ def measure_performance(func: Callable):
             result = await func(*args, **kwargs)
             duration = time.time() - start_time
             
-            container.logger.info(
+            container.logger().info(
                 "performance_metric",
                 function=func.__name__,
                 duration=duration,
@@ -180,7 +180,7 @@ def measure_performance(func: Callable):
             return result
         except Exception as e:
             duration = time.time() - start_time
-            container.logger.warning(
+            container.logger().warning(
                 "performance_metric",
                 function=func.__name__,
                 duration=duration,
@@ -196,7 +196,7 @@ def measure_performance(func: Callable):
             result = func(*args, **kwargs)
             duration = time.time() - start_time
             
-            container.logger.info(
+            container.logger().info(
                 "performance_metric",
                 function=func.__name__,
                 duration=duration,
@@ -205,7 +205,7 @@ def measure_performance(func: Callable):
             return result
         except Exception as e:
             duration = time.time() - start_time
-            container.logger.warning(
+            container.logger().warning(
                 "performance_metric",
                 function=func.__name__,
                 duration=duration,

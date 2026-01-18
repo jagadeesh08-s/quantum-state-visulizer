@@ -42,7 +42,7 @@ class Container(containers.DeclarativeContainer):
 
     # Logging
     logger = providers.Singleton(
-        lambda: structlog.get_logger("quantum-backend")
+        lambda: structlog.get_logger("quantum-backend") if structlog else logging.getLogger("quantum-backend")
     )
 
     # Redis Cache

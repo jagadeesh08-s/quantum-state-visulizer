@@ -214,6 +214,74 @@ export async function clearCache(): Promise<any> {
   }
 }
 
+// Research Platform Functions
+export async function runQuantumStudy(
+  algorithmType: string,
+  circuit: any,
+  token: string,
+  backend: string
+): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/quantum-study`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ algorithmType, circuit, token, backend }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Quantum study error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to run quantum study'
+    };
+  }
+}
+
+export async function getQuantumReport(jobId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/quantum-report/${jobId}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Quantum report error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get quantum report'
+    };
+  }
+}
+
+export async function authenticateWatsonX(apiKey: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/watsonx/authenticate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('watsonx authentication error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to authenticate with watsonx.ai'
+    };
+  }
+}
+
 // Export quantumAPI object for backward compatibility
 export const quantumAPI = {
   executeQuantumCircuit,
