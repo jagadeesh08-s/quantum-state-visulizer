@@ -92,7 +92,7 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
   const defaultKetStates = Array(numQubits).fill('|0⟩');
   const [initialKetStates, setInitialKetStates] = useState<string[]>(defaultKetStates);
 
-  const { isAuthenticated, submitJob, isLoading: isIBMLoading } = useIBMQuantum();
+  const { isAuthenticated, submitJob, isLoading: isIBMLoading, currentJob } = useIBMQuantum();
   const [isIBMDialogOpen, setIsIBMDialogOpen] = useState(false);
 
   const handleRunOnIBM = async () => {
@@ -1039,6 +1039,9 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
               parameters: g.gate.parameters
             }))}
             ketStates={initialKetStates}
+            ibmResults={currentJob?.results}
+            ibmStatus={currentJob?.status}
+            ibmTimeline={currentJob?.timeline}
           />
         </div>
 

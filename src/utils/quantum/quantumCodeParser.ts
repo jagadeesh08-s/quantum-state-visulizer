@@ -208,9 +208,9 @@ const parseCirq = (code: string): QuantumCircuit => {
 };
 
 export const simulateCircuit = (circuit: QuantumCircuit): {
-  statevector: number[][];
+  statevector: any;
   probabilities: number[];
-  densityMatrix: number[][];
+  densityMatrix: any;
   reducedStates: DensityMatrix[];
   error?: string;
 } => {

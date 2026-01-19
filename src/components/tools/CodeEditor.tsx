@@ -24,7 +24,11 @@ import {
   CircuitBoard,
   Loader2,
   Upload,
-  Earth
+  Earth,
+  Activity,
+  CheckCircle2,
+  Circle,
+  Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import beautify from 'js-beautify';
@@ -1528,6 +1532,124 @@ qc.measure_all()
                       </Card>
                     </TabsContent>
                   </Tabs>
+                )}
+
+                {/* IBM Quantum Hardware Results Panel */}
+                {(currentJob?.results || currentJob?.status) && (
+                  <Card className="border-indigo-500/30 bg-indigo-500/5 backdrop-blur-sm">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 text-indigo-400">
+                          <Activity className="w-5 h-5" />
+                          IBM Quantum Hardware Results
+                        </CardTitle>
+                        {currentJob?.status && (
+                          <Badge variant="outline" className="border-indigo-500/50 text-indigo-400">
+                            {currentJob.status}
+                          </Badge>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* Timeline Section */}
+                      {currentJob?.timeline && (
+                        <div className="bg-slate-900/40 rounded-xl p-6 border border-white/5 shadow-inner mb-6">
+                          <h4 className="text-xs font-bold text-indigo-400/70 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                            <Clock className="w-3 h-3" />
+                            Status Timeline
+                          </h4>
+                          <div className="relative pl-8 space-y-8">
+                            {/* Vertical Connecting Line */}
+                            <div className="absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-indigo-500/50 via-purple-500/50 to-slate-700" />
+
+                            {currentJob.timeline.map((event, idx) => (
+                              <motion.div
+                                key={idx}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: idx * 0.1 }}
+                                className="relative flex items-start group"
+                              >
+                                {/* Status Icon */}
+                                <div className="absolute -left-[32px] top-0.5 flex items-center justify-center">
+                                  <div className="bg-slate-950 rounded-full p-0.5">
+                                    {event.completed ? (
+                                      <div className="bg-green-500/20 rounded-full p-1 animate-in zoom-in duration-300">
+                                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                      </div>
+                                    ) : event.active ? (
+                                      <div className="bg-indigo-500/20 rounded-full p-1 ring-2 ring-indigo-500/20 ring-offset-0">
+                                        <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+                                      </div>
+                                    ) : (
+                                      <div className="bg-slate-800 rounded-full p-1 opacity-40">
+                                        <Circle className="w-4 h-4 text-slate-400" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Event Details */}
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className={`text-sm font-semibold tracking-tight transition-colors ${event.active ? 'text-indigo-400' : event.completed ? 'text-slate-100' : 'text-slate-500'}`}>
+                                      {event.label}
+                                    </span>
+                                    {event.timestamp && (
+                                      <span className="text-[10px] font-mono text-slate-500 bg-slate-800/50 px-1.5 py-0.5 rounded">
+                                        {event.timestamp}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {(event.description || (event.active && !event.completed)) && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: 'auto' }}
+                                      className="overflow-hidden"
+                                    >
+                                      <p className="text-xs text-slate-400/80 mt-1 font-medium leading-relaxed">
+                                        {event.description || (event.active ? 'Processing on IBM servers...' : '')}
+                                      </p>
+                                    </motion.div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {currentJob?.results ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {Object.entries(currentJob.results).map(([state, probability]) => (
+                            <div key={state} className="flex flex-col gap-2 p-4 rounded-xl bg-slate-900/50 border border-indigo-500/10 shadow-lg">
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-sm font-bold text-indigo-300">|{state}⟩</span>
+                                <span className="text-xs font-mono text-indigo-400">{(Number(probability) * 100).toFixed(1)}%</span>
+                              </div>
+                              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${Number(probability) * 100}%` }}
+                                  transition={{ duration: 1, ease: 'easeOut' }}
+                                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                          <div className="p-4 rounded-full bg-indigo-500/10 animate-pulse">
+                            <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-300">Job is currently {currentJob?.status?.toLowerCase() || 'processing'}</p>
+                            <p className="text-xs text-slate-500 mt-1">Results will appear here automatically when the job completes.</p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
               </motion.div>
             )}

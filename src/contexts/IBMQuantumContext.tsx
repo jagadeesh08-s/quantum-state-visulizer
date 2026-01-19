@@ -2,6 +2,15 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { connectToIBM, getIBMBackends, executeOnIBM, getIBMJobStatus } from '@/services/quantumAPI';
 import { toast } from 'sonner';
 
+export interface TimelineEvent {
+    status: string;
+    label: string;
+    timestamp: string;
+    description?: string;
+    completed: boolean;
+    active: boolean;
+}
+
 interface IBMQuantumContextType {
     token: string | null;
     isAuthenticated: boolean;
@@ -158,9 +167,16 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 console.log('[IBM Quantum] 📋 Job ID:', jobId);
                 console.log('[IBM Quantum] 📊 Status:', status);
 
-                setCurrentJob({ jobId, status });
+                const initialTimeline: TimelineEvent[] = [
+                    { status: 'CREATED', label: 'Created', timestamp: new Date().toLocaleTimeString(), completed: true, active: false },
+                    { status: 'QUEUED', label: 'Pending', timestamp: '', completed: false, active: true },
+                    { status: 'RUNNING', label: 'In progress', timestamp: '', completed: false, active: false },
+                    { status: 'DONE', label: 'Completed', timestamp: '', completed: false, active: false }
+                ];
+
+                setCurrentJob({ jobId, status, timeline: initialTimeline });
                 toast.success(`Job submitted to IBM Quantum (ID: ${jobId.substring(0, 8)}...)`);
-                startPolling(jobId);
+                startPolling(jobId, initialTimeline);
             } else {
                 console.error('[IBM Quantum] ❌ Job submission failed:', result.error);
                 toast.error(result.error || 'Failed to submit job');
@@ -212,8 +228,14 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
             if (result.success) {
                 toast.success(`Quantum Advantage Study started: ${algorithmType}`);
-                setCurrentJob({ jobId: result.jobId, status: 'RUNNING', isStudy: true });
-                if (result.jobId) startPolling(result.jobId);
+                const initialTimeline: TimelineEvent[] = [
+                    { status: 'CREATED', label: 'Created', timestamp: new Date().toLocaleTimeString(), completed: true, active: false },
+                    { status: 'QUEUED', label: 'Pending', timestamp: '', completed: false, active: true },
+                    { status: 'RUNNING', label: 'In progress', timestamp: '', completed: false, active: false },
+                    { status: 'DONE', label: 'Completed', timestamp: '', completed: false, active: false }
+                ];
+                setCurrentJob({ jobId: result.jobId, status: 'RUNNING', isStudy: true, timeline: initialTimeline });
+                if (result.jobId) startPolling(result.jobId, initialTimeline);
             } else {
                 toast.error(result.error || 'Failed to start study');
             }
@@ -224,9 +246,10 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
     };
 
-    const startPolling = (jobId: string) => {
+    const startPolling = (jobId: string, initialTimeline: TimelineEvent[]) => {
         console.log('[IBM Quantum] 🔄 Starting job polling for:', jobId);
         let pollCount = 0;
+        let timeline = [...initialTimeline];
         const maxPolls = 100; // Max 5 minutes (100 * 3s)
 
         const interval = setInterval(async () => {
@@ -242,12 +265,41 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             try {
                 const result = await getIBMJobStatus(jobId, token);
 
-                console.log('[IBM Quantum] 📥 Job status response:', result);
-
-                setCurrentJob(result);
-
                 const status = result.status;
                 console.log(`[IBM Quantum] 📊 Job status: ${status}`);
+
+                // Update timeline based on status
+                const now = new Date().toLocaleTimeString();
+                let updatedTimeline = timeline.map(event => {
+                    if (status === 'DONE' && event.status === 'DONE') {
+                        return { ...event, timestamp: now, completed: true, active: false };
+                    }
+                    if (status === 'ERROR' && (event.status === 'RUNNING' || event.status === 'QUEUED')) {
+                        return { ...event, active: false, completed: false, label: event.label + ' (Failed)', description: 'Job execution encountered an error' };
+                    }
+                    if (event.status === status) {
+                        return { ...event, timestamp: event.timestamp || now, active: true, completed: false };
+                    }
+                    if (status === 'RUNNING' && (event.status === 'QUEUED' || event.status === 'CREATED')) {
+                        return { ...event, completed: true, active: false };
+                    }
+                    if (status === 'DONE' && event.status !== 'DONE') {
+                        return { ...event, completed: true, active: false };
+                    }
+                    return event;
+                });
+
+                // Add special description for RUNNING status to simulate "usage"
+                if (status === 'RUNNING') {
+                    updatedTimeline = updatedTimeline.map(event =>
+                        event.status === 'RUNNING'
+                            ? { ...event, description: `Qiskit Runtime usage: ${pollCount * 3}s` }
+                            : event
+                    );
+                }
+
+                timeline = updatedTimeline;
+                setCurrentJob({ ...result, timeline: updatedTimeline });
 
                 if (status === 'DONE' || status === 'ERROR' || status === 'CANCELLED') {
                     clearInterval(interval);
