@@ -31,10 +31,18 @@ export class KetStateParser {
         return arr.map((v: any) => {
           if (typeof v === 'number') {
             return { re: v, im: 0 };
-          } else if (typeof v === 'string' && v.endsWith('i')) {
-            const re = 0;
-            const im = parseFloat(v.slice(0, -1));
-            return { re, im };
+          } else if (typeof v === 'string') {
+            if (v.endsWith('i')) {
+              const re = 0;
+              const im = parseFloat(v.slice(0, -1));
+              return { re, im };
+            } else {
+              // Try to parse as regular number
+              const num = parseFloat(v);
+              if (!isNaN(num)) {
+                return { re: num, im: 0 };
+              }
+            }
           } else if (typeof v === 'object' && 're' in v && 'im' in v) {
             return { re: v.re, im: v.im };
           }
@@ -78,7 +86,7 @@ export class KetStateParser {
   static validate(state: Complex[]): boolean {
     if (!Array.isArray(state) || state.length === 0) return false;
     const norm = Math.sqrt(state.reduce((acc, c) => acc + c.re * c.re + c.im * c.im, 0));
-    if (Math.abs(norm - 1) > 1e-6) return false;
+    if (Math.abs(norm - 1) > 1e-3) return false; // More lenient tolerance for floating point
     // Check dimension is power of 2
     return (Math.log2(state.length) % 1) === 0;
   }

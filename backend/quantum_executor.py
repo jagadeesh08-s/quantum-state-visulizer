@@ -64,7 +64,8 @@ GATE_MAPPING = {
     'RZ': 'rz',
     'CNOT': 'cx',
     'CZ': 'cz',
-    'SWAP': 'swap'
+    'SWAP': 'swap',
+    'SQRTY': 'sqrty'
 }
 
 # Canonical kets
@@ -161,6 +162,8 @@ def apply_gate(qc: QuantumCircuit, gate: Dict[str, Any]) -> None:
                 qc.s(qubits[0])
             elif qiskit_gate == 't':
                 qc.t(qubits[0])
+            elif gate_name == 'SQRTY':
+                qc.ry(np.pi/2, qubits[0])
 
 def calculate_bloch_vector(statevector: Statevector, qubit_index: int) -> Dict[str, float]:
     """Calculate Bloch vector for a specific qubit from the full statevector"""

@@ -78,7 +78,7 @@ export const useAnalytics = () => {
   }, []);
 
   // Track an event
-  const trackEvent = useCallback((action: string, category: string, metadata?: any, duration?: number) => {
+  const trackEvent = useCallback(async (action: string, category: string, metadata?: any, duration?: number) => {
     const event: AnalyticsEvent = {
       id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date(),
@@ -109,7 +109,25 @@ export const useAnalytics = () => {
     // Persist to localStorage
     const storedEvents = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     storedEvents.push(event);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedEvents.slice(-1000))); // Keep last 1000 events
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedEvents.slice(-1000)));
+
+    // Send to backend
+    try {
+      await fetch('http://localhost:8000/analytics/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: getUserId(),
+          sessionId: getSessionId(),
+          action,
+          category,
+          duration,
+          metadata
+        })
+      });
+    } catch (e) {
+      console.error('Failed to sync event to backend:', e);
+    }
   }, [getUserId, getSessionId]);
 
   // Track tab changes
@@ -152,138 +170,22 @@ export const useAnalytics = () => {
     });
   }, [trackEvent]);
 
-  // Calculate real analytics data
-  const calculateAnalyticsData = useCallback((allEvents: AnalyticsEvent[]): RealAnalyticsData => {
-    const now = new Date();
-    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    // Filter events from last 30 days
-    const recentEvents = allEvents.filter(event => event.timestamp >= last30Days);
-
-    // Calculate user metrics
-    const uniqueUsers = new Set(recentEvents.map(e => e.userId)).size;
-    const activeUsers = new Set(recentEvents.filter(e => {
-      const eventTime = new Date(e.timestamp);
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      return eventTime >= oneDayAgo;
-    }).map(e => e.userId)).size;
-
-    // Calculate session metrics
-    const sessions = new Map<string, AnalyticsEvent[]>();
-    recentEvents.forEach(event => {
-      if (!sessions.has(event.sessionId)) {
-        sessions.set(event.sessionId, []);
+  // Fetch real analytics data from backend
+  const fetchBackendAnalytics = useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:8000/analytics/dashboard');
+      if (response.ok) {
+        const data = await response.json();
+        setAnalyticsData(data);
       }
-      sessions.get(event.sessionId)!.push(event);
-    });
-
-    const totalSessions = sessions.size;
-    const sessionDurations = Array.from(sessions.values()).map(sessionEvents => {
-      if (sessionEvents.length === 0) return 0;
-      const startTime = Math.min(...sessionEvents.map(e => new Date(e.timestamp).getTime()));
-      const endTime = Math.max(...sessionEvents.map(e => new Date(e.timestamp).getTime()));
-      return (endTime - startTime) / 1000 / 60; // minutes
-    });
-
-    const averageSessionTime = sessionDurations.length > 0
-      ? sessionDurations.reduce((a, b) => a + b, 0) / sessionDurations.length
-      : 0;
-
-    // Calculate feature usage
-    const featureUsage = new Map<string, number>();
-    recentEvents.forEach(event => {
-      if (event.category && event.category !== 'system') {
-        featureUsage.set(event.category, (featureUsage.get(event.category) || 0) + 1);
+    } catch (e) {
+      console.error("Failed to fetch backend analytics", e);
+      // Fallback to local calculation if backend fails
+      const storedEvents = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (storedEvents.length > 0 && !analyticsData) {
+        // Reuse calculateAnalyticsData logic if needed, but for now we rely on backend
       }
-    });
-
-    const popularFeatures = Array.from(featureUsage.entries())
-      .map(([name, usage]) => ({ name, usage }))
-      .sort((a, b) => b.usage - a.usage)
-      .slice(0, 5);
-
-    // Calculate error rate
-    const totalActions = recentEvents.length;
-    const errors = recentEvents.filter(e => !e.success).length;
-    const errorRate = totalActions > 0 ? (errors / totalActions) * 100 : 0;
-
-    // Calculate completion rate (simulations, tutorials completed)
-    const completionEvents = recentEvents.filter(e =>
-      e.action === 'simulation' && e.success ||
-      e.action === 'tutorial_progress' && e.metadata?.completed
-    ).length;
-    const completionRate = totalActions > 0 ? (completionEvents / totalActions) * 100 : 0;
-
-    // Calculate retention (simplified - users with multiple sessions)
-    const userSessionCounts = new Map<string, number>();
-    Array.from(sessions.values()).forEach(sessionEvents => {
-      const userId = sessionEvents[0]?.userId;
-      if (userId) {
-        userSessionCounts.set(userId, (userSessionCounts.get(userId) || 0) + 1);
-      }
-    });
-    const usersWithMultipleSessions = Array.from(userSessionCounts.values()).filter(count => count > 1).length;
-    const userRetention = uniqueUsers > 0 ? (usersWithMultipleSessions / uniqueUsers) * 100 : 0;
-
-    // System metrics (simulated based on usage patterns)
-    const systemMetrics = {
-      cpuUsage: Math.min(45 + (recentEvents.length / 100), 90),
-      memoryUsage: Math.min(50 + (sessions.size / 10), 85),
-      networkLatency: Math.max(15, 50 - (recentEvents.length / 50)),
-      quantumJobsProcessed: recentEvents.filter(e => e.action === 'simulation').length * 10,
-      averageJobTime: 2.3,
-      cacheHitRate: Math.min(70 + (recentEvents.length / 200), 95),
-      uptime: 99.8
-    };
-
-    // Learning metrics
-    const tutorialEvents = recentEvents.filter(e => e.category === 'tutorial');
-    const uniqueLearners = new Set(tutorialEvents.map(e => e.userId)).size;
-    const completedTutorials = tutorialEvents.filter(e => e.metadata?.completed).length;
-
-    const topicUsage = new Map<string, number>();
-    tutorialEvents.forEach(event => {
-      if (event.metadata?.tutorialId) {
-        topicUsage.set(event.metadata.tutorialId, (topicUsage.get(event.metadata.tutorialId) || 0) + 1);
-      }
-    });
-
-    const popularTopics = Array.from(topicUsage.entries())
-      .map(([topic, learners]) => ({ topic, learners }))
-      .sort((a, b) => b.learners - a.learners)
-      .slice(0, 5);
-
-    // Assessment scores (from tutorial completions)
-    const assessmentScores = tutorialEvents
-      .filter(e => e.metadata?.score)
-      .map(e => e.metadata.score)
-      .slice(-10); // Last 10 scores
-
-    const learningMetrics = {
-      totalLearners: uniqueLearners,
-      completedTutorials,
-      averageProgress: tutorialEvents.length > 0 ? (completedTutorials / tutorialEvents.length) * 100 : 0,
-      popularTopics,
-      skillDistribution: [
-        { skill: 'Beginner', level: Math.max(0, 100 - (uniqueLearners / 10)) },
-        { skill: 'Intermediate', level: Math.min(100, uniqueLearners / 5) },
-        { skill: 'Advanced', level: Math.min(100, completedTutorials / 2) }
-      ],
-      assessmentScores: assessmentScores.length > 0 ? assessmentScores : [85, 92, 78, 88, 95, 82, 90, 87, 93, 79]
-    };
-
-    return {
-      totalUsers: uniqueUsers,
-      activeUsers,
-      totalSessions,
-      averageSessionTime,
-      popularFeatures,
-      errorRate,
-      completionRate,
-      userRetention,
-      systemMetrics,
-      learningMetrics
-    };
+    }
   }, []);
 
   // Load stored events and initialize session
@@ -305,15 +207,17 @@ export const useAnalytics = () => {
 
     // Track session start
     trackEvent('session_start', 'system', { sessionId });
-  }, [getSessionId, getUserId, trackEvent]);
 
-  // Update analytics data when events change
+    // Fetch initial backend data
+    fetchBackendAnalytics();
+  }, [getSessionId, getUserId, trackEvent, fetchBackendAnalytics]);
+
+  // Update analytics data periodically or on events
   useEffect(() => {
-    if (events.length > 0) {
-      const data = calculateAnalyticsData(events);
-      setAnalyticsData(data);
-    }
-  }, [events, calculateAnalyticsData]);
+    // Fetch from backend occasionally to keep fresh
+    const interval = setInterval(fetchBackendAnalytics, 60000);
+    return () => clearInterval(interval);
+  }, [fetchBackendAnalytics]);
 
   // Track session end on unmount
   useEffect(() => {
@@ -338,6 +242,7 @@ export const useAnalytics = () => {
     trackCircuitOperation,
     trackSimulation,
     trackTutorialProgress,
-    trackApplicationUsage
+    trackApplicationUsage,
+    refreshAnalytics: fetchBackendAnalytics
   };
 };

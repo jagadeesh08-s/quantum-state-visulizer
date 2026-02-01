@@ -10,6 +10,14 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import threading
 from contextlib import asynccontextmanager
+from database import init_database, create_tables, get_session
+from sqlalchemy.ext.asyncio import AsyncSession
+import db_models
+from dotenv import load_dotenv
+
+# Load .env from parent directory
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+load_dotenv(env_path)
 
 # Import our enhanced modules
 from config import config
@@ -23,6 +31,18 @@ from rate_limiting import (
     limiter, quantum_rate_limit_middleware, rate_limit_exceeded_handler,
     limit_general_requests, limit_ibm_requests, limit_simulation_requests
 )
+from validation_utils import (
+    validate_circuit_data, validate_quantum_execution_request,
+    validate_ibm_execution_request, validate_token_format,
+    validate_job_id_format, sanitize_string_input,
+    build_validation_error_response, build_server_error_response
+)
+from enhanced_error_handling import (
+    QuantumAPIError, ValidationError, CircuitExecutionError,
+    IBMQuantumError, setup_enhanced_error_handling,
+    build_error_response, build_success_response,
+    perform_health_checks
+)
 from models import (
     QuantumExecutionRequest, QuantumExecutionResult, IBMConnectRequest,
     IBMConnectResponse, IBMBackendsResponse, IBMExecuteRequest,
@@ -33,11 +53,11 @@ from models import (
     DatasetGenerateRequest, DatasetGenerateResponse,
     MedicalLoadRequest, MedicalAnalyzeRequest, ErrorResponse,
     IBMCloudAuthRequest, WatsonXAuthRequest, QuantumStudyRequest,
-    QuantumStudyResponse, QuantumReportResponse
+    QuantumStudyResponse, QuantumReportResponse, DatasetDownloadRequest
 )
 
 # Import legacy modules (keeping for compatibility)
-from quantum_executor import execute_circuit_locally, validate_circuit_data
+from quantum_executor import execute_circuit_locally
 from quantum_api_types import BackendType, QuantumExecutionOptions
 from quantum_api_bridge import QuantumAPI, execute_quantum_circuit_sync
 from quantum_knowledge_base import ask_ai_question
@@ -58,7 +78,7 @@ from quantum_data_preprocessing import (
     reduce_dimensionality, create_train_validation_split,
     analyze_quantum_readiness
 )
-import kagglehub
+
 from medical_core import medical_core, download_csv_from_drive
 
 # Load environment variables
@@ -79,26 +99,32 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for application startup and shutdown"""
     # Startup: Initialize services
     try:
-        from database import init_database, create_tables
         init_database()
         await create_tables()
         container.logger().info("database_initialized_on_startup")
     except Exception as e:
         container.logger().error("database_init_failed", error=str(e))
-        # Continue without database - it's optional
     
-    # Auto-load medical dataset if configured
-    url = os.getenv("MEDICAL_DATASET_URL")
-    if url:
-        container.logger().info("auto_loading_medical_dataset", url=url)
+    # Load medical dataset from DB in background to avoid event loop block
+    async def load_db_data():
+        print("DEBUG: ASYNC DB LOAD STARTED")
         try:
-            from medical_core import download_csv_from_drive, medical_core
-            df = download_csv_from_drive(url)
-            result = medical_core.train(df)
-            container.logger().info("medical_dataset_loaded", sample_count=result['sample_count'])
+            from medical_core import medical_core
+            async for session in get_session():
+                print("DEBUG: SESSION ACQUIRED")
+                result = await medical_core.load_from_db(session)
+                if result:
+                    print(f"DEBUG: LOADED {result.get('sample_count')} RECORDS")
+                    container.logger().info("medical_dataset_loaded_from_db", sample_count=result.get('sample_count', 0))
+                else:
+                    print("DEBUG: NO RECORDS FOUND")
+                    container.logger().warning("no_medical_data_found_in_db")
+                break
         except Exception as e:
+            print(f"DEBUG: LOAD ERROR: {e}")
             container.logger().warning("medical_dataset_load_failed", error=str(e))
-            print("WARNING: Failed to auto-load Medical Dataset. Please ensure MEDICAL_DATASET_URL points to a public CSV FILE (not folder).")
+            
+    asyncio.create_task(load_db_data())
 
     yield
 
@@ -122,7 +148,7 @@ app = FastAPI(
 
 # Import API versioning
 from api_versioning import version_middleware, versioned_router, create_versioned_router, APIVersion
-from routers import v1, v2
+from routers import v1, v2, analytics, gamification, tutor
 
 # Register versioned routers
 versioned_router.register_version("v1", v1.v1_router, deprecated=True)
@@ -131,6 +157,9 @@ versioned_router.register_version("v2", v2.v2_router, deprecated=False)
 # Include versioned routers
 app.include_router(v1.v1_router)
 app.include_router(v2.v2_router)
+app.include_router(analytics.router)
+app.include_router(gamification.router)
+app.include_router(tutor.router)
 
 # Add versioning middleware
 @app.middleware("http")
@@ -193,8 +222,66 @@ security = HTTPBearer(auto_error=False)
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Enhanced health check with dependency verification"""
-    return await get_health()
+    """Enhanced health check with comprehensive dependency verification"""
+    try:
+        # Get basic health from monitoring module
+        basic_health = await get_health()
+
+        # Perform additional comprehensive checks
+        detailed_checks = perform_health_checks()
+
+        # Combine results
+        combined_health = {
+            **basic_health,
+            "detailed_checks": detailed_checks.get("checks", {}),
+            "overall_status": detailed_checks.get("status", "unknown")
+        }
+
+        return HealthResponse(**combined_health)
+
+    except Exception as e:
+        container.logger().error("health_check_failed", error=str(e))
+        return HealthResponse(
+            status="unhealthy",
+            timestamp=time.time(),
+            services={"error": str(e)}
+        )
+
+@app.get("/api/status")
+async def system_status():
+    """Detailed system status endpoint for monitoring"""
+    try:
+        # Get comprehensive health information
+        health_data = perform_health_checks()
+
+        # Get cache statistics
+        cache_stats = await quantum_cache.get_stats()
+
+        # Get worker pool status
+        try:
+            from container import container
+            worker_pool = container.worker_pool()
+            worker_status = worker_pool.get_pool_status() if hasattr(worker_pool, 'get_pool_status') else {}
+        except:
+            worker_status = {"error": "Worker pool not available"}
+
+        # Get metrics summary
+        try:
+            metrics_summary = await get_metrics()
+        except:
+            metrics_summary = {"error": "Metrics not available"}
+
+        return build_success_response({
+            "health": health_data,
+            "cache": cache_stats,
+            "workers": worker_status,
+            "metrics": metrics_summary,
+            "timestamp": time.time()
+        })
+
+    except Exception as e:
+        container.logger().error("system_status_failed", error=str(e))
+        return build_error_response(e, 500, "SYSTEM_STATUS_ERROR")
 
 @app.get("/metrics")
 async def prometheus_metrics():
@@ -276,13 +363,24 @@ async def get_ibm_backends(request: Request, token: str):
 @app.post("/api/ibm/execute", response_model=IBMExecuteResponse)
 @limit_ibm_requests()
 async def execute_ibm(request: Request, exec_request: IBMExecuteRequest):
-    """Execute circuit on IBM Quantum with enhanced error handling and logging"""
+    """Execute circuit on IBM Quantum with enhanced validation, error handling and logging"""
     start_time = time.time()
+    request_data = exec_request.dict()
 
     try:
         print(f"[IBM] 🚀 Submitting job to backend: {exec_request.backend}")
         print(f"[IBM] 📊 Circuit: {exec_request.circuit.numQubits} qubits, {len(exec_request.circuit.gates)} gates, {exec_request.shots} shots")
-        
+
+        # Enhanced input validation
+        is_valid, validation_error, validated_data = validate_ibm_execution_request(request_data)
+        if not is_valid:
+            raise ValidationError(validation_error, {"field": "ibm_execution_request"})
+
+        # Additional circuit validation
+        circuit_valid, circuit_error, _ = validate_circuit_data(validated_data["circuit"])
+        if not circuit_valid:
+            raise ValidationError(circuit_error, {"field": "circuit"})
+
         container.logger().info("ibm_execution_started",
                             backend=exec_request.backend,
                             shots=exec_request.shots,
@@ -313,11 +411,14 @@ async def execute_ibm(request: Request, exec_request: IBMExecuteRequest):
             error = result.get("error", "Unknown error")
             print(f"[IBM] ❌ Job submission failed: {error}")
             container.logger().warning("ibm_job_failed",
-                                   error=error,
-                                   duration=duration)
+                                    error=error,
+                                    duration=duration)
 
         return IBMExecuteResponse(**result)
 
+    except ValidationError:
+        # Re-raise validation errors as-is
+        raise
     except Exception as e:
         duration = time.time() - start_time
         await metrics_collector.record_ibm_api_call("execute", False)
@@ -446,8 +547,9 @@ async def authenticate_ibm_cloud(request: IBMCloudAuthRequest):
 @app.post("/api/quantum/execute", response_model=QuantumExecutionResult)
 @limit_simulation_requests()
 async def execute_circuit(request: Request, exec_request: QuantumExecutionRequest):
-    """Execute quantum circuit with enhanced caching, metrics, and validation"""
+    """Execute quantum circuit with enhanced validation, caching, metrics, and error handling"""
     start_time = time.time()
+    request_data = exec_request.dict()
 
     try:
         container.logger().info("circuit_execution_started",
@@ -455,6 +557,16 @@ async def execute_circuit(request: Request, exec_request: QuantumExecutionReques
                             num_qubits=exec_request.circuit.numQubits,
                             num_gates=len(exec_request.circuit.gates),
                             shots=exec_request.shots)
+
+        # Enhanced input validation
+        is_valid, validation_error, validated_data = validate_quantum_execution_request(request_data)
+        if not is_valid:
+            raise ValidationError(validation_error, {"field": "execution_request"})
+
+        # Additional circuit validation
+        circuit_valid, circuit_error, _ = validate_circuit_data(validated_data["circuit"])
+        if not circuit_valid:
+            raise ValidationError(circuit_error, {"field": "circuit"})
 
         # Check cache for simulation results
         cached_result = await quantum_cache.get_simulation_result(
@@ -478,10 +590,17 @@ async def execute_circuit(request: Request, exec_request: QuantumExecutionReques
         }
         backend = backend_mapping.get(exec_request.backend.value, BackendType.LOCAL)
 
+        # Sanitize token if provided
+        sanitized_token = None
+        if exec_request.token:
+            if not validate_token_format(exec_request.token):
+                raise ValidationError("Invalid token format", {"field": "token"})
+            sanitized_token = sanitize_string_input(exec_request.token)
+
         # Create execution options
         options = QuantumExecutionOptions(
             backend=backend,
-            token=exec_request.token,
+            token=sanitized_token,
             shots=exec_request.shots,
             initial_state=exec_request.initialState or "ket0",
             custom_state=exec_request.customState,
@@ -523,34 +642,37 @@ async def execute_circuit(request: Request, exec_request: QuantumExecutionReques
         # Cache successful results
         if result.success and not result.job_id:  # Don't cache async jobs
             await quantum_cache.set_simulation_result(
-                request.circuit.dict(),
-                request.backend.value,
+                exec_request.circuit.dict(),
+                exec_request.backend.value,
                 response_data
             )
 
         container.logger().info("circuit_execution_completed",
                             success=result.success,
                             duration=duration,
-                            backend=request.backend.value)
+                            backend=exec_request.backend.value)
 
         return QuantumExecutionResult(**response_data)
 
+    except ValidationError:
+        # Re-raise validation errors as-is
+        raise
     except Exception as e:
         duration = time.time() - start_time
-        await metrics_collector.record_simulation(request.backend.value, False, duration)
+        await metrics_collector.record_simulation(exec_request.backend.value, False, duration)
 
         container.logger().error("circuit_execution_failed",
-                             error=str(e),
-                             backend=request.backend.value,
-                             duration=duration)
+                              error=str(e),
+                              backend=exec_request.backend.value,
+                              duration=duration)
 
         raise CircuitExecutionError(
             f"Failed to execute quantum circuit: {str(e)}",
             details={
-                "backend": request.backend.value,
+                "backend": exec_request.backend.value,
                 "duration": duration,
-                "num_qubits": request.circuit.numQubits,
-                "num_gates": len(request.circuit.gates)
+                "num_qubits": exec_request.circuit.numQubits,
+                "num_gates": len(exec_request.circuit.gates)
             }
         )
 
@@ -710,20 +832,7 @@ async def ask_ai(request: Request, ai_request: AIQuestionRequest):
             details={"question_length": len(ai_request.question), "duration": duration}
         )
 
-# Download Dataset Endpoint
-@app.post("/api/download-dataset")
-async def download_dataset():
-    try:
-        print("Initiating dataset download...")
-        path = kagglehub.dataset_download("masoudnickparvar/brain-tumor-mri-dataset")
-        return {
-            "success": True,
-            "path": path,
-            "message": "Dataset downloaded successfully."
-        }
-    except Exception as e:
-        container.logger().error("dataset_download_error", error=str(e))
-        raise QuantumAPIError(f"Dataset download failed: {str(e)}", status_code=500, error_code="DATASET_ERROR")
+
 
 # ============================================================================
 # QUANTUM MACHINE LEARNING ENDPOINTS
@@ -1495,27 +1604,51 @@ def get_status_message(status: str) -> str:
     return messages.get(status, "Job status unknown")
 
 # ============================================================================
-# Enhanced Error Handling
+# Enhanced Error Handling Setup
 # ============================================================================
+
+# Setup enhanced error handling and logging
+setup_enhanced_error_handling(app)
+
+# Import legacy error handlers for backward compatibility
 from error_handling import (
-    setup_error_handlers,
-    QuantumAPIError,
+    QuantumAPIError as LegacyQuantumAPIError,
     QuantumValidationError,
-    CircuitExecutionError,
-    IBMQuantumError,
+    CircuitExecutionError as LegacyCircuitExecutionError,
+    IBMQuantumError as LegacyIBMQuantumError,
     CacheError,
     WorkerPoolError
 )
 
-# Setup comprehensive error handlers
-setup_error_handlers(app)
-
 # ---------------------------------------------------------------------------
 # Quantum Medical Core Endpoints
 # ---------------------------------------------------------------------------
+@app.post("/api/medical/save-training")
+async def save_training_data(data: Dict[str, Any], session: AsyncSession = Depends(get_session)):
+    """Save manually uploaded training records to DB"""
+    try:
+        records = data.get("records", [])
+        if not records:
+             raise HTTPException(status_code=400, detail="records are required")
+        
+        from medical_core import medical_core
+        import pandas as pd
+        
+        df = pd.DataFrame(records)
+        medical_core.train(df)
+        await medical_core.save_to_db(session, origin="Manual Upload")
+        
+        return {
+            "success": True,
+            "message": f"Saved {len(records)} records to database"
+        }
+    except Exception as e:
+        container.logger().error("medical_save_error", error=str(e))
+        raise QuantumAPIError(f"Failed to save training data: {str(e)}", status_code=400, error_code="MEDICAL_SAVE_ERROR")
+
 @app.post("/api/medical/load-drive")
-async def load_drive_dataset(data: Dict[str, Any]):
-    """Load dataset from a public Google Drive link"""
+async def load_drive_dataset(data: Dict[str, Any], session: AsyncSession = Depends(get_session)):
+    """Load dataset from a public Google Drive link and save to DB"""
     try:
         url = data.get("url")
         if not url:
@@ -1527,9 +1660,12 @@ async def load_drive_dataset(data: Dict[str, Any]):
         # Train model
         result = medical_core.train(df)
         
+        # Save to database
+        await medical_core.save_to_db(session, origin=url)
+        
         return {
             "success": True,
-            "message": f"Successfully loaded {result['sample_count']} records",
+            "message": f"Successfully loaded {result['sample_count']} records and saved to database",
             "features": result['features'],
             "classes": result['classes']
         }
@@ -1556,8 +1692,15 @@ async def analyze_patient(data: Dict[str, Any]):
         raise QuantumAPIError(f"Failed to analyze patient data: {str(e)}", status_code=400, error_code="MEDICAL_ANALYSIS_ERROR")
 
 @app.get("/api/medical/status")
-async def get_medical_status():
+async def get_medical_status(session: AsyncSession = Depends(get_session)):
     """Check if medical model is trained"""
+    # Just in case it's not loaded yet, try one more time directly
+    if medical_core.dataset is None:
+        try:
+             await medical_core.load_from_db(session)
+        except:
+             pass
+
     return {
         "isTrained": medical_core.dataset is not None,
         "sampleCount": len(medical_core.dataset) if medical_core.dataset is not None else 0,

@@ -58,17 +58,48 @@ export default defineConfig(() => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
+        manualChunks: (id) => {
           // Separate vendor chunks for better caching
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'three-vendor': ['three', '@react-three/fiber', '@react-three/drei'],
-          'ui-vendor': ['framer-motion', 'lucide-react'],
-          'quantum-core': [
-            '@/utils/quantum/quantumSimulation',
-            '@/utils/quantum/circuitOperations',
-            '@/utils/quantum/gates',
-            '@/utils/core/matrixOperations'
-          ]
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react-vendor';
+            }
+            if (id.includes('three') || id.includes('@react-three')) {
+              return 'three-vendor';
+            }
+            if (id.includes('framer-motion') || id.includes('lucide-react') || id.includes('@radix-ui')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('@tanstack/react-query')) {
+              return 'query-vendor';
+            }
+            if (id.includes('recharts') || id.includes('monaco-editor')) {
+              return 'heavy-vendor';
+            }
+          }
+
+          // Separate chunks for advanced components
+          if (id.includes('components/advanced/')) {
+            if (id.includes('VQEPlayground') || id.includes('QuantumMedicalImaging')) {
+              return 'advanced-quantum';
+            }
+            if (id.includes('NoiseSimulator') || id.includes('AdvancedAnalytics')) {
+              return 'advanced-analysis';
+            }
+            if (id.includes('AITutor') || id.includes('GamificationSystem')) {
+              return 'advanced-interactive';
+            }
+          }
+
+          // Quantum core utilities
+          if (id.includes('utils/quantum/') || id.includes('utils/core/')) {
+            return 'quantum-core';
+          }
+
+          // Test files in separate chunk
+          if (id.includes('.test.') || id.includes('/__tests__/')) {
+            return 'test-files';
+          }
         }
       }
     },

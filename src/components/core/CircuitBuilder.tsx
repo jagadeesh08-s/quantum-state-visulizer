@@ -106,7 +106,7 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
       gates: circuitGates.map(g => ({
         name: g.gate.name,
         qubits: g.qubits,
-        parameters: Object.values(g.gate.parameters || {})
+        parameters: g.gate.parameters ? Object.values(g.gate.parameters) : undefined
       }))
     };
 
@@ -330,11 +330,11 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
     }
 
     // Initialize parameters for gates that support them
-    const parameters = draggedGate.parameters ? { ...draggedGate.parameters } : undefined;
+    const gateParameters = draggedGate.parameters ? Object.values(draggedGate.parameters) : undefined;
 
     const newGate: CircuitGate = {
       id: `gate_${Date.now()}_${Math.random()}`,
-      gate: { ...draggedGate, parameters },
+      gate: draggedGate,
       qubits,
       position: qubitIndex,
       inputState: { notation: 'bra-ket', value: '|0⟩', parsed: [], isValid: true },

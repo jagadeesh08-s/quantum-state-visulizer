@@ -115,8 +115,8 @@ const CoordinateAxes: React.FC<{ highlightedAxis?: 'x' | 'y' | 'z' | null }> = (
   );
 };
 
-// Main Bloch Sphere component
-const BlochSphere3D: React.FC<BlochSphereProps> = ({
+// Main Bloch Sphere component - Memoized for performance
+const BlochSphere3D: React.FC<BlochSphereProps> = React.memo(({
   vector = { x: 0, y: 0, z: 1 },
   purity = 1,
   className = "",
@@ -126,16 +126,19 @@ const BlochSphere3D: React.FC<BlochSphereProps> = ({
 }) => {
   const [hovered, setHovered] = useState(false);
 
-  // Vector Processing
+  // Vector Processing - Optimized with useMemo
   const displayVector = useMemo(() => {
     const rawLen = Math.sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2);
     if (rawLen < 0.001) return { x: 0, y: 0, z: 0 };
     // Clamp
     const scale = rawLen > 1 ? 1 / rawLen : 1;
     return { x: vector.x * scale, y: vector.y * scale, z: vector.z * scale };
-  }, [vector]);
+  }, [vector.x, vector.y, vector.z]); // More specific dependencies
 
-  const isAtDefault = Math.abs(vector.x) < 0.01 && Math.abs(vector.y) < 0.01 && Math.abs(vector.z - 1) < 0.01;
+  const isAtDefault = useMemo(() =>
+    Math.abs(vector.x) < 0.01 && Math.abs(vector.y) < 0.01 && Math.abs(vector.z - 1) < 0.01,
+    [vector.x, vector.y, vector.z]
+  );
 
   return (
     <div
@@ -246,7 +249,9 @@ const BlochSphere3D: React.FC<BlochSphereProps> = ({
       </div>
     </div >
   );
-};
+});
+
+BlochSphere3D.displayName = 'BlochSphere3D';
 
 export default BlochSphere3D;
 export type { BlochVector };

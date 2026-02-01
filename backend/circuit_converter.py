@@ -83,7 +83,9 @@ def json_to_quantum_circuit(circuit_json: Dict[str, Any]) -> QuantumCircuit:
                 qc.sxdg(qubits[0])
             elif name == 'sqrtz':
                 qc.s(qubits[0])
-            elif name == 'id' or name == 'identity':
+            elif name == 'sqrty':
+                qc.ry(np.pi/2, qubits[0])
+            elif name == 'id' or name == 'identity' or name == 'i':
                 qc.id(qubits[0])
             elif name == 'crx':
                 angle = params[0] if params else 0

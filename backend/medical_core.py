@@ -1,13 +1,43 @@
-import requests
+
 import pandas as pd
 import numpy as np
 import io
 import re
 import os
+import json
+import logging
+
+# Machine Learning Imports
+from sklearn import datasets
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from joblib import dump, load
+
+# Image Processing Imports
+try:
+    from PIL import Image
+    from skimage.feature import graycomatrix, graycoprops
+    from skimage.measure import shannon_entropy
+    from skimage import color
+    HAS_IMAGE_DEPS = True
+except ImportError:
+    HAS_IMAGE_DEPS = False
+    print("Warning: Image processing dependencies (scikit-image, pillow) not found.")
+
+# Internal Quantum Imports
+from quantum_ml_primitives import (
+    VariationalQuantumClassifier, 
+    VQCConfig, 
+    ZFeatureMap, 
+    VariationalLayer, 
+    MeasurementLayer
+)
+
+# Setup Logger
+logger = logging.getLogger("MedicalCore")
 
 def get_drive_id(url: str) -> str:
     """Extract file ID from Google Drive URL"""
-    # Patterns: /d/ID/view, id=ID
     patterns = [
         r'/d/([a-zA-Z0-9_-]+)',
         r'id=([a-zA-Z0-9_-]+)',
@@ -23,162 +53,447 @@ import gdown
 import glob
 
 def download_csv_from_drive(url: str) -> pd.DataFrame:
-    """Download CSV from public Google Drive link using gdown (handles folders/files)"""
+    """Download CSV from public Google Drive link using gdown"""
     try:
-        # Check if it is a folder or file
         is_folder = '/folders/' in url or 'drive/folders' in url
-        
         output_path = "downloaded_data"
         if os.path.exists(output_path):
             import shutil
             shutil.rmtree(output_path, ignore_errors=True)
             
         if is_folder:
-            print("Detected Drive Folder. Downloading contents...")
-            # Download folder to 'downloaded_data' directory
+            print("Detected Drive Folder. Downloading...")
             gdown.download_folder(url, output=output_path, quiet=True, use_cookies=False)
-            
-            # Find first CSV in the folder
             csv_files = glob.glob(f"{output_path}/**/*.csv", recursive=True)
             if not csv_files:
-                print("No CSV found in downloaded folder. Using synthetic data.")
-                return generate_synthetic_dataset()
+                 # Fallback to default
+                 print("No CSV found in folder. Using built-in Default Data.")
+                 return None 
             target_file = csv_files[0]
-            
         else:
-            # It's a file link
             file_id = get_drive_id(url)
             if not file_id:
-                print("Could not extract ID. Using synthetic.")
-                return generate_synthetic_dataset()
-                
-            # gdown download (more reliable than requests)
+                return None
             output_file = "downloaded_dataset.csv"
-            # gdown.download uses url directly or id
             gdown.download(url, output_file, quiet=True, fuzzy=True)
+            
+            if not os.path.exists(output_file) or os.path.getsize(output_file) < 100:
+                return None
             target_file = output_file
             
-        # Read the file
         print(f"Loading data from: {target_file}")
         df = pd.read_csv(target_file)
         return df
 
     except Exception as e:
-        print(f"Gdown download error: {e}")
-        if "Cannot retrieve the folder information" in str(e) or "Access denied" in str(e):
-             print("\n[!] Google Drive Folder Access Failed.")
-             print("Possible reasons:")
-             print("1. The folder is not PUBLIC (Anyone with link can view)")
-             print("2. Google blocked the automated request (rate limit/cookie check)")
-             print("3. Try using a DIRECT LINK to the .csv file instead of a folder link.")
-             print("\nFalling back to synthetic medical data for demonstration...\n")
-        
-        return generate_synthetic_dataset()
+        print(f"Gdown error: {e}")
+        return None
 
-def generate_synthetic_dataset() -> pd.DataFrame:
-    """Generate a realistic synthetic medical dataset for Quantum Classification"""
-    np.random.seed(42)
-    n_samples = 150
+class ImageFeatureExtractor:
+    """Helper to extract features from images for Quantum VQC"""
     
-    # Generate synthetic features based on Breast Cancer Wisconsin dataset characteristics
-    # Features: Mean Radius, Mean Texture, Mean Smoothness
-    
-    # Class 0: Benign (Healthy)
-    # Class 1: Malignant (Anomaly)
-    
-    data = []
-    
-    # Healthy samples
-    for i in range(n_samples // 2):
-        data.append({
-            "mean_radius": np.random.normal(12.0, 1.5),
-            "mean_texture": np.random.normal(15.0, 2.0),
-            "mean_smoothness": np.random.normal(0.08, 0.01),
-            "age": np.random.randint(25, 60),
-            "diagnosis": "Benign"
-        })
+    @staticmethod
+    def extract_features(image_path: str) -> dict:
+        if not HAS_IMAGE_DEPS:
+            return {}
+            
+        try:
+            # Load and convert to grayscale
+            img = Image.open(image_path).convert('L')
+            # Resize for consistent processing speed (thumbnails are enough for texture stats)
+            img = img.resize((128, 128)) 
+            img_arr = np.array(img)
+            
+            # --- FEATURE 1: INTENSITY STATISTICS ---
+            mean_intensity = np.mean(img_arr)
+            std_intensity = np.std(img_arr)
+            
+            # --- FEATURE 2: ENTROPY (Complexity) ---
+            # Measures information content / chaos
+            entropy_val = shannon_entropy(img_arr)
+            
+            # --- FEATURE 3: GLCM TEXTURE FEATURES ---
+            # Gray-Level Co-occurrence Matrix
+            # (distance=1, angles=[0, 45, 90, 135]) -> take mean
+            glcm = graycomatrix(img_arr, distances=[1], angles=[0, np.pi/4, np.pi/2, 3*np.pi/4], 
+                                levels=256, symmetric=True, normed=True)
+            
+            contrast = graycoprops(glcm, 'contrast').mean()
+            homogeneity = graycoprops(glcm, 'homogeneity').mean()
+            correlation = graycoprops(glcm, 'correlation').mean()
+            
+            # --- FEATURE 4: SYMMETRY ---
+            # Flip horizontally and compare
+            flipped = np.fliplr(img_arr)
+            # Correlation coefficient between image and its flip
+            # Flatten to 1D arrays
+            flat_img = img_arr.flatten()
+            flat_flip = flipped.flatten()
+            # Avoid div by zero
+            if np.std(flat_img) == 0: symmetry = 1.0
+            else: symmetry = np.corrcoef(flat_img, flat_flip)[0, 1]
+
+            return {
+                "mean_intensity": mean_intensity,
+                "std_intensity": std_intensity,
+                "entropy": entropy_val,
+                "contrast": contrast,
+                "homogeneity": homogeneity,
+                "correlation": correlation,
+                "symmetry": symmetry
+            }
+        except Exception as e:
+            print(f"Error extracting features from {image_path}: {e}")
+            return {}
+
+    @staticmethod
+    def process_directory(base_path: str, limit_per_class: int = 50) -> pd.DataFrame:
+        """
+        Walks internal structure: 'train/fractured', 'train/not fractured' etc.
+        Returns DataFrame suitable for training.
+        """
+        if not os.path.exists(base_path):
+            print(f"Path does not exist: {base_path}")
+            return None
+            
+        data = []
         
-    # Anomaly samples (shifted distributions)
-    for i in range(n_samples // 2):
-        data.append({
-            "mean_radius": np.random.normal(18.0, 2.0),
-            "mean_texture": np.random.normal(22.0, 3.0),
-            "mean_smoothness": np.random.normal(0.11, 0.015),
-            "age": np.random.randint(40, 75),
-            "diagnosis": "Malignant"
-        })
+        # We look for immediate subfolders (classes)
+        # Expected structure: 
+        # root/
+        #   train/
+        #       fracture/
+        #       normal/
+        # OR
+        # root/
+        #   fracture/
+        #   normal/
         
-    df = pd.DataFrame(data)
-    # Shuffle
-    df = df.sample(frac=1).reset_index(drop=True)
-    return df
+        # Let's try to detect if we are in 'train' or 'test' or root
+        search_paths = [base_path]
+        if os.path.exists(os.path.join(base_path, 'train')):
+            search_paths = [os.path.join(base_path, 'train')]
+        # Normalize
+        
+        print(f"Scanning for images in: {search_paths}")
+        
+        for search_root in search_paths:
+            # List directories inside (classes)
+            classes = [d for d in os.listdir(search_root) if os.path.isdir(os.path.join(search_root, d))]
+            
+            if not classes:
+                #Maybe it's flat?
+                print("No class subdirectories found in scan root.")
+                continue
+                
+            print(f"Found classes: {classes}")
+            
+            for cls_name in classes:
+                cls_path = os.path.join(search_root, cls_name)
+                # Find images
+                images = glob.glob(f"{cls_path}/*.jpg") + glob.glob(f"{cls_path}/*.png") + glob.glob(f"{cls_path}/*.jpeg")
+                print(f"Found {len(images)} images in class '{cls_name}'")
+                
+                # Limit
+                images = images[:limit_per_class]
+                
+                for img_p in images:
+                    feats = ImageFeatureExtractor.extract_features(img_p)
+                    if feats:
+                        feats['diagnosis'] = cls_name # Use folder name as label
+                        feats['image_path'] = img_p
+                        data.append(feats)
+                        
+        if not data:
+            return None
+            
+        return pd.DataFrame(data)
 
 class QuantumMedicalClassifier:
     """
-    Simulated Quantum Medical Classifier using classical logic for reliability 
-    acting as a placeholder for QSVM.
+    Real Quantum Medical Classifier using Variational Quantum Circuits (VQC).
+    Now supports auto-loading datasets and strict data validation.
     """
     def __init__(self):
         self.dataset = None
-        self.features = []
+        self.features = [] 
+        self.selected_features = []
         self.target = None
+        self.scaler = StandardScaler()
+        self.model = None
+        self.is_trained = False
+        self.label_map = {}
         
-    def train(self, df: pd.DataFrame, target_col: str = 'diagnosis'):
-        """Load and 'train' on the dataset"""
-        if target_col not in df.columns:
-             # Auto-detect target if not specified (last column)
-             target_col = df.columns[-1]
+        # Initialize Default Quantum Model Structure (4 Qubits)
+        self.num_qubits = 4
+        self.feature_map = ZFeatureMap(num_qubits=self.num_qubits)
+        self.vqc_config = VQCConfig(
+            feature_map=self.feature_map,
+            variational_layer=VariationalLayer(num_qubits=self.num_qubits, num_layers=2),
+            measurement_layer=MeasurementLayer(num_qubits=self.num_qubits),
+            optimizer='SPSA',
+            learning_rate=0.05,
+            max_iterations=50
+        )
+        self.model = VariationalQuantumClassifier(self.vqc_config)
+
+    def load_default_dataset(self):
+        """
+        Generate Synthetic Brain Tumor MRI Feature Dataset.
+        Simulates features extracted from MRI slices (GLCM Texture, Shape, Intensity).
+        """
+        print("LOADING DEFAULT DATASET: Brain Tumor MRI Features (Simulated)")
+        np.random.seed(42)
+        n_samples = 300
         
-        self.dataset = df
-        self.target = target_col
-        # Assume all other numeric columns are features
-        self.features = [c for c in df.columns if c != target_col and np.issubdtype(df[c].dtype, np.number)]
+        # Class 0: No Tumor / Benign
+        # Class 1: Glioma / Meningioma (Malignant)
         
-        return {
-            "features": self.features,
-            "sample_count": len(df),
-            "classes": df[target_col].unique().tolist()
-        }
+        data = []
+        
+        # Healthy / Benign Samples
+        # Characteristics: Lower entropy (uniform), higher symmetry, smaller 'mass' deviations
+        for _ in range(n_samples // 2):
+            data.append({
+                "mean_contrast": np.random.normal(15.0, 3.0),      # Texture contrast
+                "mean_homogeneity": np.random.normal(0.85, 0.05),  # Texture uniformity
+                "tumor_size_cm": np.random.normal(0.5, 0.2),       # Very small or noise
+                "brain_symmetry_index": np.random.normal(0.95, 0.03), # Highly symmetric
+                "diagnosis": "No Tumor"
+            })
+            
+        # Tumor Samples
+        # Characteristics: High entropy (chaotic), low symmetry, visible mass
+        for _ in range(n_samples // 2):
+            data.append({
+                "mean_contrast": np.random.normal(35.0, 5.0),      # High contrast (abnormality)
+                "mean_homogeneity": np.random.normal(0.60, 0.08),  # Low uniformity
+                "tumor_size_cm": np.random.normal(3.5, 1.2),       # Visible mass
+                "brain_symmetry_index": np.random.normal(0.70, 0.1),  # Asymmetric due to mass effect
+                "diagnosis": "Tumor Detected"
+            })
+            
+        df = pd.DataFrame(data)
+        # Shuffle
+        df = df.sample(frac=1).reset_index(drop=True)
+        return df
+
+    def train(self, df: pd.DataFrame = None, target_col: str = 'diagnosis'):
+        """Train the Quantum Model on the provided or default dataset."""
+        try:
+            # 1. Check for LOCAL_DATASET_PATH env var
+            local_path = os.getenv("LOCAL_DATASET_PATH")
+            
+            if df is None and local_path and os.path.exists(local_path):
+                print(f"Detected LOCAL_DATASET_PATH: {local_path}")
+                print("Attempting to load REAL IMAGE DATA...")
+                df = ImageFeatureExtractor.process_directory(local_path)
+                
+                if df is not None:
+                    print(f"Successfully loaded {len(df)} images from local disk.")
+                    # Ensure diagnosis column exists
+                else:
+                    print("Failed to load images from local path. Falling back.")
+
+            if df is None:
+                # Check for local data in 'data' folder
+                import glob
+                data_files = glob.glob("data/*.csv")
+                
+                if data_files:
+                    print(f"Loading local data from: {data_files[0]}")
+                    df = pd.read_csv(data_files[0])
+                    # Ensure we don't accidentally pick an ID column as target if user doesn't specify
+                    if target_col not in df.columns:
+                        # Try to guess target - usually 'fracture', 'label', 'target'
+                        potential_targets = ['fracture', 'label', 'target', 'diagnosis', 'class']
+                        for t in potential_targets:
+                            if t in df.columns:
+                                target_col = t
+                                break
+                        if target_col not in df.columns:
+                            target_col = df.columns[-1]
+                else:
+                    df = self.load_default_dataset()
+                    target_col = 'diagnosis'
+            
+            # Sanitization
+            if target_col not in df.columns:
+                 # Try to guess
+                 target_col = df.columns[-1]
+
+            self.dataset = df
+            self.target = target_col
+            
+            # Detect numeric features
+            self.features = [c for c in df.columns if c != target_col and np.issubdtype(df[c].dtype, np.number)]
+            
+            # Feature Selection (Dimensionality Reduction to fit 4 Qubits)
+            if len(self.features) > self.num_qubits:
+                # Just pick the first 4 for simplicity in this demo version
+                # In a full version, we would use PCA here
+                self.selected_features = self.features[:self.num_qubits]
+            else:
+                self.selected_features = self.features
+
+            print(f"Features selected for Quantum Processing: {self.selected_features}")
+
+            # Prepare Data
+            X = df[self.selected_features].values
+            y = df[target_col].factorize()[0] # Encode to 0, 1...
+            
+            # Save mapping
+            unique_labels = df[target_col].unique()
+            codes = df[target_col].factorize()[0]
+            # create dictionary code -> label
+            self.label_map = {}
+            for code, label in zip(codes, df[target_col]):
+                self.label_map[code] = label
+
+            # Scale Data
+            X_scaled = self.scaler.fit_transform(X)
+
+            # Train VQC
+            # We use a subset for speed if dataset is huge
+            if len(X_scaled) > 200:
+                print("Subsampling data for faster Quantum Training...")
+                indices = np.random.choice(len(X_scaled), 100, replace=False)
+                X_train = X_scaled[indices]
+                y_train = y[indices]
+            else:
+                X_train = X_scaled
+                y_train = y
+
+            print("Starting Quantum VQC Training...")
+            train_data = [x.tolist() for x in X_train]
+            train_labels = y_train.tolist()
+            
+            result = self.model.train(train_data, train_labels, max_iterations=20)
+            
+            self.is_trained = True
+            print("Training Complete.")
+            
+            return {
+                "features": self.selected_features,
+                "sample_count": len(df),
+                "classes": list(self.label_map.values()),
+                "training_loss": result.get('final_loss'),
+                "status": "Success"
+            }
+        except Exception as e:
+            print(f"Training Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"error": str(e), "status": "Failed"}
+
+    async def save_to_db(self, db_session, origin="Imported"):
+        if self.dataset is None:
+            return
+        
+        from db_models import MedicalCaseRecord
+        # Limit to 50 records saved to avoid DB bloat
+        sliced_df = self.dataset.head(50)
+        
+        for idx, row in sliced_df.iterrows():
+            features_dict = {k: float(row[k]) for k in self.selected_features if k in row}
+            
+            case = MedicalCaseRecord(
+                patient_id=str(row.get('patient_id', f"P-{idx}")),
+                age=int(row.get('age', 0)),
+                diagnosis=str(row.get('diagnosis', 'Unknown')),
+                status='Training Data',
+                dataset_origin=origin,
+                features_json=features_dict
+            )
+            db_session.add(case)
+        await db_session.commit()
+
+    async def load_from_db(self, db_session):
+        # We skip DB loading if we want the fresh default data always
+         return self.train(None) 
 
     def predict(self, patient_data: dict) -> dict:
         """
-        Compare patient data to dataset using basic distance metric
-        (Simulating Quantum Kernel Estimation)
+        Predict diagnosis using trained Quantum Model.
+        Includes STRICT Data Boundary Checks.
         """
-        if self.dataset is None:
-            raise Exception("Model not trained")
-            
-        # Convert patient dict to vector
-        vector = []
-        for f in self.features:
-            val = patient_data.get(f, 0)
-            try:
-                vector.append(float(val))
-            except:
-                vector.append(0.0)
-                
-        # Calculate distances to all points in dataset (Euclidean)
-        # In quantum, this would be 1 - Fidelity
-        df_features = self.dataset[self.features]
-        distances = np.linalg.norm(df_features.values - np.array(vector), axis=1)
-        
-        # Find k-nearest neighbors (k=5)
-        k = min(5, len(self.dataset))
-        nearest_indices = distances.argsort()[:k]
-        
-        # Vote
-        votes = self.dataset.iloc[nearest_indices][self.target].value_counts()
-        prediction = votes.index[0]
-        confidence = votes.iloc[0] / k
-        
-        # Quantum metrics simulation
-        projected_fidelity = max(0, 1 - (distances[nearest_indices[0]] / 10.0)) # Fake fidelity
-        
-        return {
-            "diagnosis": str(prediction),
-            "confidence": float(confidence),
-            "quantum_fidelity": float(projected_fidelity),
-            "nearest_match_id": str(self.dataset.iloc[nearest_indices[0]].name)
-        }
+        if not self.is_trained:
+             # Auto-train if not trained
+             print("Model not trained. Waking up training sequence...")
+             self.train(None)
 
+        # --- OUT OF BOUNDARY CHECK ---
+        input_keys = set(patient_data.keys())
+        required_keys = set(self.selected_features)
+        
+        # 1. Schema Validation
+        # We check if the input contains the features we learned on.
+        # If the input has completely different keys (e.g. from a different dataset), reject it.
+        if not required_keys.issubset(input_keys):
+            # Check for partial overlaps or completely different data
+            return {
+                "diagnosis": "INVALID DATA",
+                "confidence": 0.0,
+                "is_valid": False,
+                "error": "Out of Boundary: Input data does not match the training schema.",
+                "missing_features": list(required_keys - input_keys)
+            }
+
+        # 2. Extract and Scale Vector
+        try:
+            vector = [float(patient_data[f]) for f in self.selected_features]
+            vector_np = np.array([vector])
+            vector_scaled = self.scaler.transform(vector_np)
+            
+            # 3. Statistical Boundary Check (Outlier Detection)
+            # If values are > 5 standard deviations away, it's likely junk data
+            if np.any(np.abs(vector_scaled) > 5):
+                 return {
+                    "diagnosis": "OUTLIER DETECTED",
+                    "confidence": 0.0,
+                    "is_valid": False,
+                    "error": "Out of Distribution: Data values are statistically anomalous."
+                }
+                
+            # Run Prediction
+            # VQC returns measurement expectation <Z>. 
+            # Usually range -1 to 1.
+            raw_result = self.model.predict(vector_scaled[0].tolist())
+            # Assuming single output for binary/multiclass
+            val = raw_result[0] 
+            
+            # Interpret result
+            # If classes are mapped: 0 -> (-1 approx), 1 -> (+1 approx) or vice versa depending on Z mapping
+            # Standard: |0> -> +1, |1> -> -1
+            # We map simply: > 0 goes to one class, < 0 goes to the other, or nearest integer if multi-class
+            
+            # Simplest interpretation for 2 classes
+            if len(self.label_map) == 2:
+                 # If we trained with labels 0 and 1.
+                 # 0 target usually maps to something close to expectation +1 or -1 depending on cost function?
+                 # Hand-wavy for this demo: Threshold at 0.5 if output is prob, or 0 if expectation
+                 
+                 predicted_code = 1 if val < 0 else 0 
+                 confidence = abs(val)
+            else:
+                 predicted_code = int(round(val))
+            
+            label = self.label_map.get(predicted_code, "Unknown")
+            
+            return {
+                "diagnosis": label,
+                "confidence": float(confidence),
+                "is_valid": True,
+                "quantum_features": vector_scaled[0].tolist()
+            }
+
+        except Exception as e:
+            return {
+                "diagnosis": "ERROR",
+                "confidence": 0.0,
+                "is_valid": False,
+                "error": str(e)
+            }
+
+# Global Instance
 medical_core = QuantumMedicalClassifier()

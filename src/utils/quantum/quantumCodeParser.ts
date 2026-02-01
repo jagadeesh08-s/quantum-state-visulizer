@@ -108,26 +108,49 @@ export const validateQuantumCode = (code: string): CodeError[] => {
 };
 
 export const parseQuantumCode = (code: string): QuantumCircuit => {
+  console.log('parseQuantumCode called with code:', code);
   const trimmed = code.trim();
-  if (!trimmed) return { numQubits: 1, gates: [] };
+  if (!trimmed) {
+    console.log('parseQuantumCode: empty code, returning default');
+    return { numQubits: 1, gates: [] };
+  }
   // OpenQASM support
   if (/^OPENQASM\s+2\.0;/.test(trimmed) || /\bqreg\s+q\[\d+\]/.test(trimmed)) {
+    console.log('parseQuantumCode: detected OpenQASM');
     const qc = parseOpenQASM(trimmed);
-    if (qc) return qc;
+    if (qc) {
+      console.log('parseQuantumCode: OpenQASM parsed successfully:', qc);
+      return qc;
+    } else {
+      console.log('parseQuantumCode: OpenQASM parse failed');
+    }
   }
   if (trimmed.startsWith('{')) {
-    // JSON format
-    const obj = JSON.parse(trimmed);
-    return obj as QuantumCircuit;
+    console.log('parseQuantumCode: detected JSON');
+    try {
+      const obj = JSON.parse(trimmed);
+      console.log('parseQuantumCode: JSON parsed successfully:', obj);
+      return obj as QuantumCircuit;
+    } catch (e) {
+      console.error('parseQuantumCode: JSON parse error:', e);
+      throw e;
+    }
   }
   // Try Qiskit first
   if (/QuantumCircuit|qc\./.test(code)) {
-    return parseQiskit(code);
+    console.log('parseQuantumCode: trying Qiskit parser');
+    const result = parseQiskit(code);
+    console.log('parseQuantumCode: Qiskit parsed result:', result);
+    return result;
   }
   // Try Cirq
   if (/cirq\.|circuit\./.test(code)) {
-    return parseCirq(code);
+    console.log('parseQuantumCode: trying Cirq parser');
+    const result = parseCirq(code);
+    console.log('parseQuantumCode: Cirq parsed result:', result);
+    return result;
   }
+  console.log('parseQuantumCode: no parser matched, returning default');
   // Fallback empty
   return { numQubits: 1, gates: [] };
 };

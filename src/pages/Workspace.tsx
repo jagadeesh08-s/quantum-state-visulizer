@@ -68,13 +68,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useIBMQuantum } from '@/contexts/IBMQuantumContext';
 import { IBMQuantumConnection } from '@/components/tools/IBMQuantumConnection';
 
-import { VQEPlayground } from '@/components/advanced/VQEPlayground';
+import { Suspense, lazy } from 'react';
 
-import { NoiseSimulator } from '@/components/advanced/NoiseSimulator';
-import { AITutor } from '@/components/advanced/AITutor';
-import { GamificationSystem } from '@/components/advanced/GamificationSystem';
-import { AdvancedAnalytics } from '@/components/advanced/AdvancedAnalytics';
-import QuantumMedicalImaging from '@/components/advanced/QuantumMedicalImaging';
+// Lazy load heavy components for better performance
+const VQEPlayground = lazy(() => import('@/components/advanced/VQEPlayground').then(module => ({ default: module.VQEPlayground })));
+const NoiseSimulator = lazy(() => import('@/components/advanced/NoiseSimulator').then(module => ({ default: module.NoiseSimulator })));
+const AITutor = lazy(() => import('@/components/advanced/AITutor').then(module => ({ default: module.AITutor })));
+const GamificationSystem = lazy(() => import('@/components/advanced/GamificationSystem').then(module => ({ default: module.GamificationSystem })));
+const AdvancedAnalytics = lazy(() => import('@/components/advanced/AdvancedAnalytics').then(module => ({ default: module.AdvancedAnalytics })));
+const QuantumMedicalImaging = lazy(() => import('@/components/advanced/QuantumMedicalImaging').then(module => ({ default: module.default })));
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { type QuantumState } from '@/utils/core/stateNotationConverter';
 import {
@@ -1308,48 +1310,60 @@ qc = QuantumCircuit(${circuit.numQubits})
 
                   {/* VQE Playground */}
                   <TabsContent value="vqe" className="space-y-6">
-                    <VQEPlayground />
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <VQEPlayground />
+                    </Suspense>
                   </TabsContent>
 
 
                   {/* Quantum Medical Imaging */}
                   <TabsContent value="medical-imaging" className="space-y-6">
-                    <QuantumMedicalImaging />
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <QuantumMedicalImaging />
+                    </Suspense>
                   </TabsContent>
 
                   {/* Noise Simulator */}
                   <TabsContent value="noise" className="space-y-6">
-                    <NoiseSimulator />
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <NoiseSimulator />
+                    </Suspense>
                   </TabsContent>
 
                   {/* AI Tutor */}
                   <TabsContent value="tutor" className="space-y-6">
-                    <AITutor
-                      circuitState={{
-                        currentCircuit,
-                        simulationResults: simulationResult || null,
-                        activeTab
-                      }}
-                      onRequestTabSwitch={(tab, reason) => {
-                        setActiveTab(tab as typeof activeTab);
-                        toast.info(`Switched to ${tab} tab: ${reason}`);
-                      }}
-                      onStepComplete={(goalId, stepId) => {
-                        // Track step completion
-                        trackTutorialProgress('step_completed', 0, true);
-                        toast.success('Step completed! Great work!');
-                      }}
-                    />
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <AITutor
+                        circuitState={{
+                          currentCircuit,
+                          simulationResults: simulationResult || null,
+                          activeTab
+                        }}
+                        onRequestTabSwitch={(tab, reason) => {
+                          setActiveTab(tab as typeof activeTab);
+                          toast.info(`Switched to ${tab} tab: ${reason}`);
+                        }}
+                        onStepComplete={(goalId, stepId) => {
+                          // Track step completion
+                          trackTutorialProgress('step_completed', 0, true);
+                          toast.success('Step completed! Great work!');
+                        }}
+                      />
+                    </Suspense>
                   </TabsContent>
 
                   {/* Gamification System */}
                   <TabsContent value="gamify" className="space-y-6">
-                    <GamificationSystem />
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <GamificationSystem />
+                    </Suspense>
                   </TabsContent>
 
                   {/* Advanced Analytics */}
                   <TabsContent value="insights" className="space-y-6">
-                    <AdvancedAnalytics />
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <AdvancedAnalytics />
+                    </Suspense>
                   </TabsContent>
 
 

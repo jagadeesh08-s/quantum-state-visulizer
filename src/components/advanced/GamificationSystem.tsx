@@ -171,14 +171,71 @@ export const GamificationSystem: React.FC<GamificationSystemProps> = ({ onChalle
   const [showReward, setShowReward] = useState(false);
   const [lastReward, setLastReward] = useState<any>(null);
 
-  const completeChallenge = (challengeId: string) => {
-    setChallenges(prev => prev.map(challenge => {
-      if (challenge.id === challengeId) {
-        const updated = { ...challenge, completed: true, progress: 100 };
+  const getUserId = () => localStorage.getItem('blochverse_user_id') || 'user_demo';
+
+  useEffect(() => {
+    const fetchGamificationData = async () => {
+      try {
+        const userId = getUserId();
+        const [profileRes, leaderboardRes] = await Promise.all([
+          fetch(`http://localhost:8000/gamification/profile/${userId}`),
+          fetch('http://localhost:8000/gamification/leaderboard')
+        ]);
+
+        if (profileRes.ok) {
+          const profile = await profileRes.json();
+          setStats(prev => ({
+            ...prev,
+            totalExperience: profile.experience,
+            currentLevel: profile.level,
+            currentStreak: profile.currentStreak,
+            // Map other fields as needed
+          }));
+
+          if (profile.completedChallenges) {
+            setChallenges(prev => prev.map(c => ({
+              ...c,
+              completed: profile.completedChallenges.includes(c.id),
+              progress: profile.completedChallenges.includes(c.id) ? 100 : c.progress
+            })));
+          }
+        }
+
+        if (leaderboardRes.ok) {
+          const lbData = await leaderboardRes.json();
+          // Map backend leaderboard to frontend interface if needed
+          // Backend returns: { userId, experience, level, ... username, rank }
+          // Frontend expects: { id, username, score, level, badges, rank, change }
+
+          const mappedLb = lbData.map((p: any) => ({
+            id: p.userId,
+            username: p.username,
+            score: p.experience,
+            level: p.level,
+            badges: p.achievements?.length || 0,
+            rank: p.rank,
+            change: 0 // Backend doesn't track change over time yet
+          }));
+          setLeaderboard(mappedLb);
+        }
+      } catch (e) {
+        console.error("Failed to fetch gamification data", e);
+      }
+    };
+    fetchGamificationData();
+  }, []);
+
+  const completeChallenge = async (challengeId: string) => {
+    // 1. Optimistic UI update
+    const challenge = challenges.find(c => c.id === challengeId);
+    if (!challenge) return;
+
+    setChallenges(prev => prev.map(c => {
+      if (c.id === challengeId) {
+        const updated = { ...c, completed: true, progress: 100 };
         setLastReward(updated.reward);
         setShowReward(true);
 
-        // Update stats
         setStats(prevStats => ({
           ...prevStats,
           totalExperience: prevStats.totalExperience + updated.reward.experience,
@@ -188,14 +245,26 @@ export const GamificationSystem: React.FC<GamificationSystemProps> = ({ onChalle
 
         return updated;
       }
-      return challenge;
+      return c;
     }));
 
-    // Notify parent component about challenge completion
     onChallengeComplete?.(challengeId);
-
-    // Hide reward after 3 seconds
     setTimeout(() => setShowReward(false), 3000);
+
+    // 2. Backend update
+    try {
+      const userId = getUserId();
+      await fetch(`http://localhost:8000/gamification/profile/${userId}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          experience: challenge.reward.experience,
+          completedChallenge: challengeId
+        })
+      });
+    } catch (e) {
+      console.error("Failed to update progress on backend", e);
+    }
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -474,17 +543,15 @@ export const GamificationSystem: React.FC<GamificationSystemProps> = ({ onChalle
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className={`flex items-center justify-between p-4 rounded-lg border ${
-                      index < 3 ? 'border-yellow-500/50 bg-yellow-500/5' : 'border-border'
-                    }`}
+                    className={`flex items-center justify-between p-4 rounded-lg border ${index < 3 ? 'border-yellow-500/50 bg-yellow-500/5' : 'border-border'
+                      }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                        index === 0 ? 'bg-yellow-500 text-white' :
-                        index === 1 ? 'bg-gray-400 text-white' :
-                        index === 2 ? 'bg-orange-600 text-white' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${index === 0 ? 'bg-yellow-500 text-white' :
+                          index === 1 ? 'bg-gray-400 text-white' :
+                            index === 2 ? 'bg-orange-600 text-white' :
+                              'bg-muted text-muted-foreground'
+                        }`}>
                         {index + 1}
                       </div>
                       <div>
@@ -501,10 +568,9 @@ export const GamificationSystem: React.FC<GamificationSystemProps> = ({ onChalle
                       </div>
                       <div className="flex items-center gap-1">
                         {getRankChangeIcon(entry.change)}
-                        <span className={`text-sm ${
-                          entry.change > 0 ? 'text-green-600' :
-                          entry.change < 0 ? 'text-red-600' : 'text-muted-foreground'
-                        }`}>
+                        <span className={`text-sm ${entry.change > 0 ? 'text-green-600' :
+                            entry.change < 0 ? 'text-red-600' : 'text-muted-foreground'
+                          }`}>
                           {entry.change !== 0 && Math.abs(entry.change)}
                         </span>
                       </div>

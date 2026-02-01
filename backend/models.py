@@ -24,10 +24,10 @@ class QuantumGate(BaseModel):
     @validator('name')
     def validate_gate_name(cls, v):
         valid_gates = [
-            'H', 'X', 'Y', 'Z', 'S', 'T', 'RX', 'RY', 'RZ',
+            'H', 'I', 'X', 'Y', 'Z', 'S', 'T', 'RX', 'RY', 'RZ',
             'CNOT', 'CX', 'CY', 'CZ', 'CH', 'CP', 'SWAP', 'CCNOT', 'CCX', 'TOFFOLI',
             'FREDKIN', 'CSWAP', 'P', 'PHASE', 'U', 'U3', 'U1', 'U2', 'SDG', 'TDG',
-            'SX', 'SXDG', 'SQRTX', 'SQRTZ', 'ID', 'MEASURE',
+            'SX', 'SXDG', 'SQRTX', 'SQRTY', 'SQRTZ', 'ID', 'MEASURE',
             'CRX', 'CRY', 'CRZ', 'RXX', 'RYY', 'RZZ'
         ]
         if v.upper() not in valid_gates:
@@ -257,6 +257,10 @@ class QuantumReportResponse(BaseModel):
     success: bool
     report: str
     format: str = "markdown"
+
+class DatasetDownloadRequest(BaseModel):
+    """Dataset download request"""
+    dataset_name: str = Field(..., description="Kaggle dataset identifier or alias (e.g., 'ybone')")
 
 class ErrorResponse(BaseModel):
     """Standard error response"""

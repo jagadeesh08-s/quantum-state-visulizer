@@ -320,44 +320,44 @@ export const AITutor: React.FC<AITutorProps> = ({
     setCurrentQuestion('');
     setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses = [
-        "That's a great question! Let me explain this concept step by step...",
-        "Excellent observation! In quantum computing, this relates to the fundamental principles of superposition and measurement.",
-        "You're on the right track! Let me clarify this with a practical example...",
-        "This is a key insight! Quantum algorithms often leverage this property to achieve speedups over classical approaches.",
-        "Perfect question! This touches on one of the most important concepts in quantum information theory."
-      ];
+    try {
+      const response = await fetch('http://localhost:8000/tutor/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: userMessage.content })
+      });
 
-      const suggestions = [
-        "Can you explain quantum entanglement in simple terms?",
-        "How does a quantum computer differ from a classical computer?",
-        "What are the practical applications of quantum computing?",
-        "How do quantum gates work?",
-        "What is superposition and why is it important?"
-      ];
+      if (response.ok) {
+        const data = await response.json();
+        const assistantMessage: ConversationMessage = {
+          id: `assistant_${Date.now()}`,
+          type: 'assistant',
+          content: data.answer,
+          timestamp: new Date(data.timestamp),
+          suggestions: [
+            "Can you explain that further?",
+            "Give me an example.",
+            "How does this relate to entanglement?"
+          ]
+        };
+        setConversation(prev => [...prev, assistantMessage]);
 
-      const assistantMessage: ConversationMessage = {
-        id: `assistant_${Date.now()}`,
-        type: 'assistant',
-        content: responses[Math.floor(Math.random() * responses.length)] + "\n\n" +
-                "Quantum computing represents a paradigm shift from classical binary computing. Instead of bits (0 or 1), we use quantum bits or qubits that can exist in superposition states. This allows quantum computers to process vast amounts of information simultaneously.\n\n" +
-                "The key breakthrough comes from quantum interference and entanglement, which enable algorithms that can solve certain problems exponentially faster than classical computers.",
-        timestamp: new Date(),
-        suggestions: suggestions.slice(0, 3)
-      };
+        // Award experience (Optimistic)
+        setUserProgress(prev => ({
+          ...prev,
+          experience: prev.experience + 10,
+          totalStudyTime: prev.totalStudyTime + 5
+        }));
 
-      setConversation(prev => [...prev, assistantMessage]);
+        // Optionally sync progress to backend here
+      } else {
+        console.error("Backend error");
+      }
+    } catch (e) {
+      console.error("Failed to call AI Tutor backend", e);
+    } finally {
       setIsTyping(false);
-
-      // Award experience
-      setUserProgress(prev => ({
-        ...prev,
-        experience: prev.experience + 10,
-        totalStudyTime: prev.totalStudyTime + 5
-      }));
-    }, 2000);
+    }
   };
 
   // Circuit monitoring and step completion detection
@@ -449,7 +449,7 @@ export const AITutor: React.FC<AITutorProps> = ({
     if (firstStep) {
       console.log('📝 Setting initial feedback for first step:', firstStep.id);
       if (firstStep.expectedAction.type === 'switch_tab' &&
-          circuitState?.activeTab !== firstStep.expectedAction.tab) {
+        circuitState?.activeTab !== firstStep.expectedAction.tab) {
         setCurrentStepFeedback(`Please switch to the ${firstStep.expectedAction.tab} tab to continue.`);
       } else {
         setCurrentStepFeedback(firstStep.instruction);
@@ -606,8 +606,8 @@ export const AITutor: React.FC<AITutorProps> = ({
 
       // Check if user is in wrong tab and needs redirect
       if (currentStep.expectedAction.type === 'switch_tab' &&
-          currentStep.expectedAction.tab &&
-          circuitState.activeTab !== currentStep.expectedAction.tab) {
+        currentStep.expectedAction.tab &&
+        circuitState.activeTab !== currentStep.expectedAction.tab) {
         const feedback = `Please switch to the ${currentStep.expectedAction.tab} tab to continue.`;
         console.log('📢 Setting tab switch feedback:', feedback);
         setCurrentStepFeedback(feedback);
@@ -755,121 +755,120 @@ export const AITutor: React.FC<AITutorProps> = ({
             });
             return true;
           })() && (
-            <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-secondary/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-primary" />
-                  Interactive Learning Session
-                </CardTitle>
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="text-primary">
-                    Step {interactiveSession.currentStepIndex + 1} of {selectedGoal.steps.length}
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setInteractiveSession(null);
-                      setSelectedGoal(null);
-                      setCurrentStepFeedback('');
-                    }}
-                  >
-                    End Session
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {(() => {
-                  const currentStep = selectedGoal.steps[interactiveSession.currentStepIndex];
-                  return (
-                    <div className="space-y-4">
-                      <div className="text-center">
-                        <h3 className="text-lg font-bold mb-2">{currentStep.title}</h3>
-                        <p className="text-muted-foreground">{currentStep.description}</p>
-                      </div>
-
-                      <Alert className="border-blue-500/30 bg-blue-500/5">
-                        <Lightbulb className="h-4 w-4 text-blue-500" />
-                        <AlertDescription className="text-blue-700 dark:text-blue-300">
-                          {currentStep.instruction}
-                        </AlertDescription>
-                      </Alert>
-
-                      {/* Always show current status */}
-                      <div className="text-sm text-muted-foreground">
-                        Status: {interactiveSession.completedSteps.includes(currentStep.id) ?
-                          '✅ Completed' :
-                          checkStepCompletion(currentStep) ?
-                          '🎯 Ready to complete' :
-                          '⏳ In progress'}
-                      </div>
-
-                      {currentStepFeedback && (
-                        <Alert className={`border-green-500/30 bg-green-500/5 ${
-                          currentStepFeedback.includes('Please switch') ? 'border-orange-500/30 bg-orange-500/5' : ''
-                        }`}>
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          <AlertDescription className="text-green-700 dark:text-green-300">
-                            {currentStepFeedback}
-                          </AlertDescription>
-                        </Alert>
-                      )}
-
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowHint(!showHint)}
-                        >
-                          <HelpCircle className="w-4 h-4 mr-2" />
-                          {showHint ? 'Hide' : 'Show'} Hint
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (interactiveSession && selectedGoal) {
-                              const currentStep = selectedGoal.steps[interactiveSession.currentStepIndex];
-                              const isCompleted = checkStepCompletion(currentStep);
-                              if (isCompleted && !interactiveSession.completedSteps.includes(currentStep.id)) {
-                                completeCurrentStep();
-                              } else {
-                                setCurrentStepFeedback('Step not yet completed. Follow the instructions above.');
-                              }
-                            }
-                          }}
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Check Progress
-                        </Button>
-                      </div>
-
-                      {showHint && (
-                        <Alert className="border-yellow-500/30 bg-yellow-500/5">
-                          <HelpCircle className="h-4 w-4 text-yellow-500" />
-                          <AlertDescription className="text-yellow-700 dark:text-yellow-300">
-                            {currentStep.hints[Math.floor(Math.random() * currentStep.hints.length)]}
-                          </AlertDescription>
-                        </Alert>
-                      )}
-
-                      {/* Progress Indicator */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Session Progress</span>
-                          <span>{interactiveSession.completedSteps.length}/{selectedGoal.steps.length} steps</span>
+              <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-secondary/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    Interactive Learning Session
+                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className="text-primary">
+                      Step {interactiveSession.currentStepIndex + 1} of {selectedGoal.steps.length}
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setInteractiveSession(null);
+                        setSelectedGoal(null);
+                        setCurrentStepFeedback('');
+                      }}
+                    >
+                      End Session
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(() => {
+                    const currentStep = selectedGoal.steps[interactiveSession.currentStepIndex];
+                    return (
+                      <div className="space-y-4">
+                        <div className="text-center">
+                          <h3 className="text-lg font-bold mb-2">{currentStep.title}</h3>
+                          <p className="text-muted-foreground">{currentStep.description}</p>
                         </div>
-                        <Progress
-                          value={(interactiveSession.completedSteps.length / selectedGoal.steps.length) * 100}
-                          className="h-2"
-                        />
+
+                        <Alert className="border-blue-500/30 bg-blue-500/5">
+                          <Lightbulb className="h-4 w-4 text-blue-500" />
+                          <AlertDescription className="text-blue-700 dark:text-blue-300">
+                            {currentStep.instruction}
+                          </AlertDescription>
+                        </Alert>
+
+                        {/* Always show current status */}
+                        <div className="text-sm text-muted-foreground">
+                          Status: {interactiveSession.completedSteps.includes(currentStep.id) ?
+                            '✅ Completed' :
+                            checkStepCompletion(currentStep) ?
+                              '🎯 Ready to complete' :
+                              '⏳ In progress'}
+                        </div>
+
+                        {currentStepFeedback && (
+                          <Alert className={`border-green-500/30 bg-green-500/5 ${currentStepFeedback.includes('Please switch') ? 'border-orange-500/30 bg-orange-500/5' : ''
+                            }`}>
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <AlertDescription className="text-green-700 dark:text-green-300">
+                              {currentStepFeedback}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowHint(!showHint)}
+                          >
+                            <HelpCircle className="w-4 h-4 mr-2" />
+                            {showHint ? 'Hide' : 'Show'} Hint
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (interactiveSession && selectedGoal) {
+                                const currentStep = selectedGoal.steps[interactiveSession.currentStepIndex];
+                                const isCompleted = checkStepCompletion(currentStep);
+                                if (isCompleted && !interactiveSession.completedSteps.includes(currentStep.id)) {
+                                  completeCurrentStep();
+                                } else {
+                                  setCurrentStepFeedback('Step not yet completed. Follow the instructions above.');
+                                }
+                              }
+                            }}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Check Progress
+                          </Button>
+                        </div>
+
+                        {showHint && (
+                          <Alert className="border-yellow-500/30 bg-yellow-500/5">
+                            <HelpCircle className="h-4 w-4 text-yellow-500" />
+                            <AlertDescription className="text-yellow-700 dark:text-yellow-300">
+                              {currentStep.hints[Math.floor(Math.random() * currentStep.hints.length)]}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+
+                        {/* Progress Indicator */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Session Progress</span>
+                            <span>{interactiveSession.completedSteps.length}/{selectedGoal.steps.length} steps</span>
+                          </div>
+                          <Progress
+                            value={(interactiveSession.completedSteps.length / selectedGoal.steps.length) * 100}
+                            className="h-2"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-          )}
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
@@ -889,13 +888,12 @@ export const AITutor: React.FC<AITutorProps> = ({
                   return (
                     <div
                       key={goal.id}
-                      className={`p-4 border rounded-lg transition-all ${
-                        isCompleted
+                      className={`p-4 border rounded-lg transition-all ${isCompleted
                           ? 'border-green-500 bg-green-500/5'
                           : canStart
                             ? 'border-primary/50 hover:border-primary cursor-pointer'
                             : 'border-gray-300 opacity-60'
-                      }`}
+                        }`}
                       onClick={() => canStart && !isCompleted && setSelectedGoal(goal)}
                     >
                       <div className="flex items-start justify-between mb-2">
@@ -1079,11 +1077,10 @@ export const AITutor: React.FC<AITutorProps> = ({
             {userProgress.achievements.map((achievement) => (
               <Card
                 key={achievement.id}
-                className={`transition-all ${
-                  achievement.unlocked
+                className={`transition-all ${achievement.unlocked
                     ? 'border-yellow-500/50 bg-yellow-500/5'
                     : 'border-gray-200 opacity-75'
-                }`}
+                  }`}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
