@@ -80,6 +80,8 @@ from quantum_data_preprocessing import (
 )
 
 from medical_core import medical_core, download_csv_from_drive
+from symptom_analysis import symptom_analyzer
+from pydantic import BaseModel
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -125,6 +127,19 @@ async def lifespan(app: FastAPI):
             container.logger().warning("medical_dataset_load_failed", error=str(e))
             
     asyncio.create_task(load_db_data())
+
+    # Initialize Symptom Analyzer (Background)
+    async def init_symptom_analyzer():
+        print("DEBUG: SYMPTOM ANALYZER INIT STARTED - Downloading Google Drive Dataset...")
+        try:
+             # Run in thread pool to avoid blocking
+             loop = asyncio.get_running_loop()
+             await loop.run_in_executor(None, symptom_analyzer.train)
+             print("DEBUG: SYMPTOM ANALYZER TRAINED SUCCESSFULLY")
+        except Exception as e:
+             print(f"DEBUG: SYMPTOM ANALYZER FAILED: {e}")
+
+    # asyncio.create_task(init_symptom_analyzer())
 
     yield
 
@@ -625,13 +640,13 @@ async def execute_circuit(request: Request, exec_request: QuantumExecutionReques
             "success": result.success,
             "method": result.method,
             "backend": result.backend,
-            "executionTime": result.execution_time
+            "executionTime": result.executionTime
         }
 
-        if result.qubit_results:
-            response_data["qubitResults"] = result.qubit_results
-        if result.job_id:
-            response_data["jobId"] = result.job_id
+        if result.qubitResults:
+            response_data["qubitResults"] = result.qubitResults
+        if result.jobId:
+            response_data["jobId"] = result.jobId
         if result.status:
             response_data["status"] = result.status
         if result.message:
@@ -658,6 +673,10 @@ async def execute_circuit(request: Request, exec_request: QuantumExecutionReques
         # Re-raise validation errors as-is
         raise
     except Exception as e:
+        import traceback
+        with open("error_traceback.log", "w") as f:
+            f.write(traceback.format_exc())
+            
         duration = time.time() - start_time
         await metrics_collector.record_simulation(exec_request.backend.value, False, duration)
 
@@ -751,6 +770,20 @@ async def execute_circuit_statevector(data: Dict[str, Any]):
     except Exception as e:
         container.logger().error("statevector_execution_error", error=str(e))
         raise CircuitExecutionError(f"Statevector execution failed: {str(e)}", details={"backend": "statevector"})
+
+@app.post("/api/quantum/noise-simulation")
+async def run_noise_simulation(data: Dict[str, Any]):
+    """
+    Run a noisy quantum simulation using QuantumSimulator.
+    Accepts: { circuit, initialState, noise: { enabled: true, ... } }
+    """
+    try:
+        from quantum_simulator import execute_circuit as simulate_with_noise
+        result = simulate_with_noise(data)
+        return result
+    except Exception as e:
+        container.logger().error("noise_simulation_error", error=str(e))
+        return {"success": False, "error": str(e)}
 
 # Get available backends
 @app.get("/api/quantum/backends")
@@ -1701,12 +1734,103 @@ async def get_medical_status(session: AsyncSession = Depends(get_session)):
         except:
              pass
 
+    from dataset_manager import dataset_manager
+    current_dataset_info = dataset_manager.get_current_dataset_info()
+
     return {
         "isTrained": medical_core.dataset is not None,
         "sampleCount": len(medical_core.dataset) if medical_core.dataset is not None else 0,
-        "classes": medical_core.dataset[medical_core.target].unique().tolist() if medical_core.dataset is not None else []
+        "classes": medical_core.dataset[medical_core.target].unique().tolist() if medical_core.dataset is not None else [],
+        "currentDataset": current_dataset_info,
+        "selectedFeatures": medical_core.selected_features,
+        "currentDatasetName": medical_core.current_dataset_name
     }
 
+@app.get("/api/medical/datasets")
+async def list_datasets():
+    """List all available datasets"""
+    from dataset_manager import dataset_manager
+    return {
+        "success": True,
+        "datasets": dataset_manager.list_datasets()
+    }
+
+@app.post("/api/medical/switch-dataset")
+async def switch_dataset(data: dict, session: AsyncSession = Depends(get_session)):
+    """Switch to a different dataset and retrain"""
+    try:
+        dataset_name = data.get("datasetName")
+        if not dataset_name:
+            raise HTTPException(status_code=400, detail="datasetName is required")
+        
+        from medical_core import switch_and_train_dataset
+        
+        # Switch and retrain
+        result = switch_and_train_dataset(dataset_name)
+        
+        if result.get("status") == "Failed":
+            raise HTTPException(status_code=404, detail=result.get("error"))
+        
+        # Save to DB
+        try:
+            await medical_core.save_to_db(session, origin=f"Dataset: {dataset_name}")
+        except:
+            pass
+        
+        return {
+            "success": True,
+            "message": f"Switched to dataset: {dataset_name}",
+            "trainingResult": result
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        container.logger().error("dataset_switch_error", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+# ============================================================================
+# Symptom Analysis Endpoints
+# ============================================================================
+
+class SymptomPredictRequest(BaseModel):
+    symptoms: List[str]
+
+@app.post("/api/symptoms/train")
+async def train_symptom_model():
+    """Trigger training of the symptom analysis model"""
+    try:
+        container.logger().info("symptom_training_started")
+        result = symptom_analyzer.train()
+        return result
+    except Exception as e:
+        container.logger().error("symptom_training_failed", error=str(e))
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/symptoms/predict")
+async def predict_symptoms(request: SymptomPredictRequest):
+    """Predict condition based on symptoms"""
+    try:
+        container.logger().info("symptom_prediction_requested", symptoms=len(request.symptoms))
+        result = symptom_analyzer.predict(request.symptoms)
+        return result
+    except Exception as e:
+        container.logger().error("symptom_prediction_failed", error=str(e))
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/symptoms/list")
+async def get_symptom_list():
+    """Get list of available symptoms for the frontend"""
+    try:
+        symptoms = symptom_analyzer.get_symptoms()
+        # Sort for better UI
+        symptoms.sort()
+        return {"success": True, "symptoms": symptoms}
+    except Exception as e:
+        container.logger().error("symptom_list_failed", error=str(e))
+        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

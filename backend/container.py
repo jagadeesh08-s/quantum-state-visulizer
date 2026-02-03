@@ -28,8 +28,12 @@ except ImportError:
 
 import logging
 
+# Lazy import ibm_service to avoid circular import
+def _get_ibm_service():
+    from ibm_service import IBMQuantumService
+    return IBMQuantumService
+
 # Import our services
-from ibm_service import IBMQuantumService
 from quantum_worker import QuantumWorkerPool
 from quantum_knowledge_base import ask_ai_question
 
@@ -82,8 +86,8 @@ class Container(containers.DeclarativeContainer):
         ['cache_type']
     )
 
-    # Services
-    ibm_service = providers.Singleton(IBMQuantumService)
+    # Services - use lazy import via callable to avoid circular import
+    ibm_service = providers.Callable(_get_ibm_service)
 
     worker_pool = providers.Singleton(
         QuantumWorkerPool,

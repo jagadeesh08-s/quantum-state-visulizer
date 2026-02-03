@@ -24,7 +24,10 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { SPSAOptimizer, VQE as VQERunner } from '@/utils/quantum/vqaAlgorithms';
+import { simulateCircuit } from '@/utils/quantum/circuitOperations';
+import { ComplexMatrix } from '@/utils/core/complex';
 
 interface Molecule {
   name: string;
@@ -130,41 +133,82 @@ export const VQEPlayground: React.FC = () => {
 
     setCurrentJob(job);
 
-    // Simulate VQE execution
-    let progress = 0;
-    const convergenceData: number[] = [];
-    let currentEnergy = -0.5; // Starting energy
+    // Hamiltonian for H2 (approximate for demo)
+    // H = -1.0523*I + 0.3979*Z1 + 0.3979*Z2 - 0.0112*Z1Z2 + 0.1809*X1X2
+    const hamiltonian: number[][] = [
+      [-1.0523732 + 0.39793742 + 0.39793742 - 0.0112, 0, 0, 0.1809],
+      [0, -1.0523732 + 0.39793742 - 0.39793742 + 0.0112, 0.1809, 0],
+      [0, 0.1809, -1.0523732 - 0.39793742 + 0.39793742 + 0.0112, 0],
+      [0.1809, 0, 0, -1.0523732 - 0.39793742 - 0.39793742 - 0.0112]
+    ];
 
-    const interval = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress > 100) progress = 100;
+    const vqeRunner = new VQERunner(hamiltonian);
 
-      // Simulate energy convergence
-      const noise = (Math.random() - 0.5) * 0.1;
-      currentEnergy += noise * Math.exp(-convergenceData.length * 0.1);
-      convergenceData.push(currentEnergy);
+    // Override computeExpectationValue with real simulation
+    (vqeRunner as any).computeExpectationValue = (circuit: any): number => {
+      const results = simulateCircuit({
+        numQubits: 2,
+        gates: circuit.gates
+      });
+
+      const rho = results.densityMatrix as ComplexMatrix;
+      let energy = 0;
+
+      // Calculate ⟨ψ|H|ψ⟩ = Tr(ρH)
+      for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+          energy += rho[i][j].real * hamiltonian[j][i];
+        }
+      }
+      return energy;
+    };
+
+    const optimizer = new SPSAOptimizer();
+    const initialParams = Array(ansatzLayers * 2).fill(0).map(() => Math.random() * Math.PI);
+
+    let currentIteration = 0;
+    const history: number[] = [];
+    let params = [...initialParams];
+    let bestEnergy = Infinity;
+
+    const tick = () => {
+      if (!isRunning) return;
+
+      const result = vqeRunner.optimize(optimizer, params);
+      currentIteration += result.convergenceHistory.length;
+      params = result.optimalParameters;
+      const energies = result.convergenceHistory.map(h => h.value);
+      history.push(...energies);
+
+      const currentEnergy = history[history.length - 1];
+      if (currentEnergy < bestEnergy) bestEnergy = currentEnergy;
+
+      const progress = (currentIteration / maxIterations) * 100;
 
       setCurrentJob(prev => prev ? {
         ...prev,
-        progress,
-        iterations: convergenceData.length,
-        convergence: [...convergenceData],
+        progress: Math.min(progress, 100),
+        iterations: currentIteration,
+        convergence: [...history],
         energy: currentEnergy
       } : null);
 
-      if (progress >= 100) {
-        clearInterval(interval);
+      if (currentIteration >= maxIterations || progress >= 100) {
+        setIsRunning(false);
         setCurrentJob(prev => prev ? {
           ...prev,
           status: 'completed',
           progress: 100,
-          energy: currentEnergy,
+          energy: bestEnergy,
           endTime: new Date()
         } : null);
         setJobHistory(prev => [job, ...prev]);
-        setIsRunning(false);
+      } else {
+        setTimeout(tick, 50);
       }
-    }, 500);
+    };
+
+    tick();
   };
 
   const stopVQE = () => {
@@ -237,11 +281,10 @@ export const VQEPlayground: React.FC = () => {
                   {MOLECULES.map((molecule) => (
                     <div
                       key={molecule.name}
-                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        selectedMolecule.name === molecule.name
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      }`}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedMolecule.name === molecule.name
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                        }`}
                       onClick={() => setSelectedMolecule(molecule)}
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -312,8 +355,11 @@ export const VQEPlayground: React.FC = () => {
                     <Input
                       id="maxIterations"
                       type="number"
-                      value={maxIterations}
-                      onChange={(e) => setMaxIterations(parseInt(e.target.value) || 100)}
+                      value={maxIterations || ''}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setMaxIterations(isNaN(val) ? 0 : val);
+                      }}
                       min={10}
                       max={1000}
                     />
@@ -323,8 +369,11 @@ export const VQEPlayground: React.FC = () => {
                     <Input
                       id="tolerance"
                       type="number"
-                      value={tolerance}
-                      onChange={(e) => setTolerance(parseFloat(e.target.value) || 1e-6)}
+                      value={tolerance || ''}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setTolerance(isNaN(val) ? 0 : val);
+                      }}
                       step="1e-8"
                     />
                   </div>
@@ -335,8 +384,11 @@ export const VQEPlayground: React.FC = () => {
                   <Input
                     id="ansatzLayers"
                     type="number"
-                    value={ansatzLayers}
-                    onChange={(e) => setAnsatzLayers(parseInt(e.target.value) || 2)}
+                    value={ansatzLayers || ''}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setAnsatzLayers(isNaN(val) ? 0 : val);
+                    }}
                     min={1}
                     max={10}
                   />
@@ -376,8 +428,8 @@ export const VQEPlayground: React.FC = () => {
                       </div>
                       <Badge className={
                         currentJob.status === 'completed' ? 'bg-green-500' :
-                        currentJob.status === 'running' ? 'bg-blue-500' :
-                        currentJob.status === 'failed' ? 'bg-red-500' : 'bg-gray-500'
+                          currentJob.status === 'running' ? 'bg-blue-500' :
+                            currentJob.status === 'failed' ? 'bg-red-500' : 'bg-gray-500'
                       }>
                         {currentJob.status}
                       </Badge>
@@ -452,32 +504,87 @@ export const VQEPlayground: React.FC = () => {
 
               {/* Convergence Plot */}
               {currentJob && currentJob.convergence.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Energy Convergence</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={getConvergenceData()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="iteration" />
-                          <YAxis />
-                          <Tooltip
-                            formatter={(value: number) => [value.toFixed(6), 'Energy (Hartree)']}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="energy"
-                            stroke="#3b82f6"
-                            strokeWidth={2}
-                            dot={false}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="grid grid-cols-1 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Energy Convergence</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={getConvergenceData()}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="iteration" />
+                            <YAxis domain={['auto', 'auto']} />
+                            <Tooltip
+                              formatter={(value: number) => [value.toFixed(6), 'Energy (Hartree)']}
+                              labelFormatter={(label) => `Iteration ${label}`}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="energy"
+                              stroke="#3b82f6"
+                              strokeWidth={2}
+                              dot={false}
+                              activeDot={{ r: 6 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* NEW: Quantum vs Classical Comparison Graph */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-purple-500" />
+                        Quantum vs. Classical Benchmark
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={getConvergenceData().map(d => ({
+                              ...d,
+                              classicalLimit: -1.1373 // Hardcoded exact energy for H2 demo
+                            }))}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.5} />
+                            <XAxis dataKey="iteration" />
+                            <YAxis domain={['auto', 'auto']} />
+                            <Tooltip
+                              contentStyle={{ backgroundColor: 'rgba(20, 20, 30, 0.9)', borderRadius: '8px', border: '1px solid #444' }}
+                            />
+                            <Legend verticalAlign="top" height={36} />
+
+                            <Line
+                              name="Quantum VQE (Approx)"
+                              type="monotone"
+                              dataKey="energy"
+                              stroke="#3b82f6"
+                              strokeWidth={3}
+                              dot={false}
+                            />
+                            <Line
+                              name="Classical FCI (Exact)"
+                              type="monotone"
+                              dataKey="classicalLimit"
+                              stroke="#ec4899"
+                              strokeWidth={2}
+                              strokeDasharray="5 5"
+                              dot={false}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                        <div className="text-center mt-2 text-xs text-muted-foreground">
+                          Comparison of Variational Quantum Eigensolver trajectory against Classical Full Configuration Interaction (FCI) exact limit.
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               )}
             </CardContent>
           </Card>

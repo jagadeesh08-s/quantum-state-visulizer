@@ -13,3 +13,6 @@ requests
 # Image processing
 scikit-image
 pillow
+gdown
+# Caching and job queue
+redis

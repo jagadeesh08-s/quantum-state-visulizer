@@ -40,6 +40,7 @@ interface NoiseModel {
     gateError: number; // Gate error rate
     readoutError: number; // Measurement error rate
     crosstalk: number; // Crosstalk strength
+    temperature?: number; // Device temperature (K)
   };
 }
 
@@ -162,32 +163,78 @@ export const NoiseSimulator: React.FC = () => {
 
     setIsSimulating(true);
 
-    // Simulate noise simulation
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      const noiseParams = selectedNoiseModel.name === 'Custom' ? customParameters : selectedNoiseModel.parameters;
 
-    const noiseParams = selectedNoiseModel.name === 'Custom' ? customParameters : selectedNoiseModel.parameters;
+      const payload = {
+        circuit: {
+          numQubits: numQubits,
+          gates: [
+            // Generate a sample circuit based on depth
+            ...Array.from({ length: circuitDepth }, (_, i) => ({
+              name: i % 2 === 0 ? 'H' : 'CNOT',
+              qubits: i % 2 === 0 ? [i % numQubits] : [i % numQubits, (i + 1) % numQubits]
+            }))
+          ]
+        },
+        initialState: 'ket0',
+        noise: {
+          enabled: true,
+          type: selectedNoiseModel.name.toLowerCase().replace(' ', '_'),
+          t1: noiseParams.t1,
+          t2: noiseParams.t2,
+          gateError1q: noiseParams.gateError,
+          gateError2q: noiseParams.gateError * 10,
+          readoutError0: noiseParams.readoutError,
+          readoutError1: noiseParams.readoutError,
+          temperature: selectedNoiseModel.name === 'Custom' ? (customParameters as any).temperature || 0.02 : 0.02,
+          crosstalk: selectedNoiseModel.name === 'Custom' ? (customParameters as any).crosstalk || 0.001 : 0.001,
+          enableT1T2: true,
+          enableGateErrors: true,
+          enableReadoutErrors: true,
+          enableCrosstalk: true,
+          enableThermal: true
+        }
+      };
 
-    // Calculate fidelity based on noise parameters and circuit depth
-    const baseFidelity = Math.exp(-circuitDepth * noiseParams.gateError - numQubits * noiseParams.readoutError);
-    const mitigatedFidelity = selectedMitigation
-      ? Math.min(1.0, baseFidelity + (1 - baseFidelity) * selectedMitigation.effectiveness)
-      : baseFidelity;
+      const response = await fetch('http://localhost:8082/api/quantum/noise-simulation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-    const result: SimulationResult = {
-      id: `sim_${Date.now()}`,
-      circuit: { depth: circuitDepth, qubits: numQubits },
-      noiseModel: selectedNoiseModel,
-      mitigation: selectedMitigation,
-      fidelity: baseFidelity,
-      errorRate: 1 - baseFidelity,
-      mitigatedFidelity,
-      executionTime: Math.random() * 1000 + 500,
-      timestamp: new Date()
-    };
+      const data = await response.json();
 
-    setSimulationResult(result);
-    setSimulationHistory(prev => [result, ...prev]);
-    setIsSimulating(false);
+      if (data.success) {
+        // Calculate average fidelity for summary
+        const avgFidelity = data.qubitResults.reduce((acc: number, q: any) => acc + q.reducedRadius, 0) / numQubits;
+
+        const result: SimulationResult = {
+          id: `sim_${Date.now()}`,
+          circuit: { depth: circuitDepth, qubits: numQubits },
+          noiseModel: selectedNoiseModel,
+          mitigation: selectedMitigation,
+          fidelity: avgFidelity,
+          errorRate: 1 - avgFidelity,
+          mitigatedFidelity: selectedMitigation
+            ? Math.min(1.0, avgFidelity + (1 - avgFidelity) * selectedMitigation.effectiveness)
+            : avgFidelity,
+          executionTime: data.executionTime * 1000,
+          timestamp: new Date(),
+          // Extend the interface to include raw data
+          rawResults: data.qubitResults
+        } as any;
+
+        setSimulationResult(result);
+        setSimulationHistory(prev => [result, ...prev]);
+      } else {
+        console.error('Simulation failed:', data.error);
+      }
+    } catch (error) {
+      console.error('Error running simulation:', error);
+    } finally {
+      setIsSimulating(false);
+    }
   };
 
   const getFidelityData = () => {
@@ -280,11 +327,10 @@ export const NoiseSimulator: React.FC = () => {
                   {NOISE_MODELS.map((model) => (
                     <div
                       key={model.name}
-                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        selectedNoiseModel.name === model.name
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      }`}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedNoiseModel.name === model.name
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                        }`}
                       onClick={() => setSelectedNoiseModel(model)}
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -315,11 +361,10 @@ export const NoiseSimulator: React.FC = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-3">
                   <div
-                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                      selectedMitigation === null
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
+                    className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedMitigation === null
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                      }`}
                     onClick={() => setSelectedMitigation(null)}
                   >
                     <h4 className="font-semibold">No Mitigation</h4>
@@ -329,11 +374,10 @@ export const NoiseSimulator: React.FC = () => {
                   {ERROR_MITIGATION.map((mitigation) => (
                     <div
                       key={mitigation.name}
-                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        selectedMitigation?.name === mitigation.name
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      }`}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedMitigation?.name === mitigation.name
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                        }`}
                       onClick={() => setSelectedMitigation(mitigation)}
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -396,6 +440,26 @@ export const NoiseSimulator: React.FC = () => {
                       step="0.001"
                       value={customParameters.readoutError * 100}
                       onChange={(e) => setCustomParameters(prev => ({ ...prev, readoutError: parseFloat(e.target.value) / 100 || 0.015 }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="temperature">Temperature (K)</Label>
+                    <Input
+                      id="temperature"
+                      type="number"
+                      step="0.001"
+                      value={(customParameters as any).temperature || 0.02}
+                      onChange={(e) => setCustomParameters(prev => ({ ...prev, temperature: parseFloat(e.target.value) || 0.02 }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="crosstalk">Crosstalk Strength</Label>
+                    <Input
+                      id="crosstalk"
+                      type="number"
+                      step="0.0001"
+                      value={customParameters.crosstalk}
+                      onChange={(e) => setCustomParameters(prev => ({ ...prev, crosstalk: parseFloat(e.target.value) || 0.001 }))}
                     />
                   </div>
                 </div>
@@ -602,6 +666,65 @@ export const NoiseSimulator: React.FC = () => {
                     </Card>
                   </div>
 
+                  {/* Density Matrix Heatmap */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Activity className="w-5 h-5" />
+                        Density Matrix (Qubit 0)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-col items-center justify-center p-6 bg-slate-900 rounded-xl border border-slate-800">
+                        <div className="grid grid-cols-2 gap-4">
+                          {(simulationResult as any).rawResults?.[0]?.densityMatrix?.map((row: string[], i: number) => (
+                            row.map((val, j) => {
+                              const complex = val.split(' ');
+                              const real = parseFloat(complex[0]);
+                              const magnitude = Math.abs(real);
+                              return (
+                                <div
+                                  key={`${i}-${j}`}
+                                  className="w-32 h-32 rounded-lg flex flex-col items-center justify-center transition-all hover:scale-105 border border-white/10"
+                                  style={{
+                                    backgroundColor: real > 0
+                                      ? `rgba(59, 130, 246, ${Math.max(0.1, magnitude)})`
+                                      : `rgba(239, 68, 68, ${Math.max(0.1, magnitude)})`
+                                  }}
+                                >
+                                  <span className="text-xs font-mono text-white/60 mb-1">
+                                    |{i}⟩⟨{j}|
+                                  </span>
+                                  <span className="text-sm font-bold text-white">
+                                    {real.toFixed(4)}
+                                  </span>
+                                  <span className="text-[10px] text-white/40">
+                                    {complex[1]} {complex[2]}
+                                  </span>
+                                </div>
+                              );
+                            })
+                          ))}
+                        </div>
+                        <div className="mt-8 flex gap-6 text-xs">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-blue-500 rounded-sm" />
+                            <span className="text-muted-foreground">Positive Real</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-red-500 rounded-sm" />
+                            <span className="text-muted-foreground">Negative Real</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Info className="w-3 h-3" />
+                            Opacity scales with magnitude
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+
                   {/* Detailed Metrics */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card className="border-blue-500/20 bg-blue-500/5">
@@ -720,6 +843,43 @@ export const NoiseSimulator: React.FC = () => {
                     <li><strong>Gate Error:</strong> Imperfect gate implementation</li>
                     <li><strong>Fidelity:</strong> Measure of quantum state preservation</li>
                   </ul>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="w-5 h-5" />
+                  Noise Profile (T₁/T₂ Decay)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={Array.from({ length: 50 }, (_, i) => {
+                        const time = i * 2;
+                        const t1 = selectedNoiseModel.name === 'Custom' ? customParameters.t1 : selectedNoiseModel.parameters.t1;
+                        const t2 = selectedNoiseModel.name === 'Custom' ? customParameters.t2 : selectedNoiseModel.parameters.t2;
+                        return {
+                          time,
+                          t1_decay: Math.exp(-time / t1),
+                          t2_decay: Math.exp(-time / t2)
+                        };
+                      })}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" label={{ value: 'Time (μs)', position: 'insideBottom', offset: -5 }} />
+                      <YAxis domain={[0, 1]} label={{ value: 'Coherence', angle: -90, position: 'insideLeft' }} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="t1_decay" stroke="#ef4444" name="T1 (Relaxation)" dot={false} strokeWidth={2} />
+                      <Line type="monotone" dataKey="t2_decay" stroke="#3b82f6" name="T2 (Dephasing)" dot={false} strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-4 text-xs text-muted-foreground flex justify-between">
+                  <span>T₁: {selectedNoiseModel.name === 'Custom' ? customParameters.t1 : selectedNoiseModel.parameters.t1}μs</span>
+                  <span>T₂: {selectedNoiseModel.name === 'Custom' ? customParameters.t2 : selectedNoiseModel.parameters.t2}μs</span>
                 </div>
               </CardContent>
             </Card>

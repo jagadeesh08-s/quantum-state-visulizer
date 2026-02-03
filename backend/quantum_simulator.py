@@ -20,7 +20,7 @@ class QuantumSimulator:
     def __init__(self, num_qubits: int, noise_params: Optional[NoiseParameters] = None):
         self.num_qubits = num_qubits
         self.state_vector = StateVector(1 << num_qubits)
-        self.noise_simulator = QuantumNoiseSimulator(noise_params)
+        self.noise_simulator = QuantumNoiseSimulator(noise_params) if noise_params else None
         self.gate_times = {}  # Track execution time for noise modeling
         self.total_execution_time = 0.0
 
@@ -70,14 +70,14 @@ class QuantumSimulator:
             gate = QuantumGates.get_gate(gate_name, parameters)
             self.state_vector.apply_unitary(gate, qubits)
 
-            # Apply noise if enabled
-            if self.noise_simulator.params.enable_gate_errors or self.noise_simulator.params.enable_t1_t2:
+            # Apply noise if enabled and simulator exists
+            if self.noise_simulator and (self.noise_simulator.params.enable_gate_errors or self.noise_simulator.params.enable_t1_t2):
                 # Convert state vector to density matrix for noise application
                 density_matrix = self._state_vector_to_density_matrix()
 
                 # Apply noise
                 noisy_density_matrix = self.noise_simulator.apply_noise_to_circuit(
-                    density_matrix, {'gate': gate_time}, list(range(self.num_qubits))
+                    density_matrix, {'gate': gate_time}, qubits
                 )
 
                 # Convert back to state vector (simplified - assumes pure state)
@@ -105,6 +105,9 @@ class QuantumSimulator:
 
     def _state_vector_to_density_matrix(self) -> np.ndarray:
         """Convert state vector to density matrix"""
+        if self.num_qubits > 14:
+            raise MemoryError(f"Density matrix computation disabled for {self.num_qubits} qubits (too large).")
+        
         state_vector = self.state_vector.to_array()
         # Convert from [(real, imag), ...] format to complex array
         sv_complex = np.array([complex(r, i) for r, i in state_vector])
@@ -129,8 +132,11 @@ class QuantumSimulator:
         """Measure a specific qubit with readout noise"""
         outcome, probability, new_state = self.state_vector.measure(qubit_index)
 
-        # Apply readout noise if enabled
-        noisy_outcome = self.noise_simulator.apply_measurement_noise(outcome)
+        # Apply readout noise if enabled and simulator exists
+        if self.noise_simulator:
+            noisy_outcome = self.noise_simulator.apply_measurement_noise(outcome)
+        else:
+            noisy_outcome = outcome
 
         self.state_vector = new_state  # Update to collapsed state
         return noisy_outcome, probability
@@ -192,14 +198,35 @@ class QuantumSimulator:
 
     def _compute_density_matrix(self) -> np.ndarray:
         """Compute density matrix from state vector"""
+        if self.num_qubits > 14:
+            raise MemoryError(f"Density matrix computation disabled for {self.num_qubits} qubits (too large).")
+        
         size = self.state_vector.size
         rho = np.zeros((size, size), dtype=np.complex128)
 
-        for i in range(size):
-            for j in range(size):
-                rho[i, j] = self.state_vector.amplitudes[i] * np.conj(self.state_vector.amplitudes[j])
+        # Convert state vector to complex array
+        sv_array = self.state_vector.to_array()
+        sv_complex = np.array([complex(r, i) for r, i in sv_array])
+        
+        return np.outer(sv_complex, sv_complex.conj())
 
-        return rho
+    def get_qubit_density_matrix(self, qubit_index: int) -> List[List[str]]:
+        """Get formatted reduced density matrix for a specific qubit"""
+        # Use the optimized O(N) method from StateVector instead of computing full density matrix
+        # This avoids the O(4^N) memory explosion
+        rho = self.state_vector._get_reduced_density_matrix(qubit_index)
+        
+        # Format for frontend
+        formatted = []
+        for row in rho:
+            formatted_row = []
+            for val in row:
+                sign = "+" if val.imag >= 0 else "-"
+                formatted_row.append(f"{val.real:.4f} {sign} {abs(val.imag):.4f}j")
+            formatted.append(formatted_row)
+            
+        return formatted
+
 
     def _get_matrix_eigenvalues(self, matrix: np.ndarray) -> np.ndarray:
         """Get eigenvalues of a matrix"""
@@ -214,12 +241,39 @@ def execute_circuit(circuit_data: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         circuit = circuit_data['circuit']
+        num_qubits = circuit['numQubits']
+        
+        # Memory Safeguard for High Qubit Counts
+        if num_qubits >= 20:
+             # Basic check: 20 qubits = 2^20 complex doubles * 16 bytes ~= 16MB statevector (safe)
+             # 25 qubits = 32MB * 16 = 512MB (safe)
+             # 28 qubits = 4GB (borderline for some systems)
+             # 30 qubits = 16GB (requires high-end machine)
+             
+             try:
+                 import psutil
+                 mem = psutil.virtual_memory()
+                 required_bytes = (2**num_qubits) * 16 # Complex128 = 16 bytes
+                 if mem.available < required_bytes + 1024*1024*512: # Buffer 512MB
+                     return {
+                         'success': False, 
+                         'error': f"Insufficient memory for {num_qubits} qubits. Required: {required_bytes/1024**3:.2f}GB, Available: {mem.available/1024**3:.2f}GB"
+                     }
+             except ImportError:
+                 pass # Cannot check, proceed with caution
+
         initial_state = circuit_data['initialState']
         custom_state = circuit_data.get('customState')
 
         # Get noise configuration
         noise_config = circuit_data.get('noise', {})
         noise_params = None
+
+        # Auto-disable noise for high qubit counts to prevent O(N^2) density matrix overhead
+        # Noise simulation typically requires density matrices or many shots
+        if num_qubits > 14 and noise_config.get('enabled', False):
+            print(f"Warning: Disabling noise simulation for {num_qubits} qubits to preserve memory.")
+            noise_config['enabled'] = False
 
         if noise_config.get('enabled', False):
             noise_type = noise_config.get('type', 'ibm')
@@ -236,9 +290,13 @@ def execute_circuit(circuit_data: Dict[str, Any]) -> Dict[str, Any]:
                     gate_error_2q=noise_config.get('gateError2q', 0.01),
                     readout_error_0=noise_config.get('readoutError0', 0.01),
                     readout_error_1=noise_config.get('readoutError1', 0.02),
+                    temperature=noise_config.get('temperature', 0.02),
+                    crosstalk_strength=noise_config.get('crosstalk', 0.001),
                     enable_t1_t2=noise_config.get('enableT1T2', True),
                     enable_gate_errors=noise_config.get('enableGateErrors', True),
-                    enable_readout_errors=noise_config.get('enableReadoutErrors', True)
+                    enable_readout_errors=noise_config.get('enableReadoutErrors', True),
+                    enable_crosstalk=noise_config.get('enableCrosstalk', True),
+                    enable_thermal=noise_config.get('enableThermal', True)
                 )
             # If noise_type is 'perfect' or not recognized, noise_params stays None (no noise)
 
@@ -257,31 +315,47 @@ def execute_circuit(circuit_data: Dict[str, Any]) -> Dict[str, Any]:
         # Apply gates
         simulator.apply_gates(circuit['gates'])
 
-        # Calculate entanglement measures
-        concurrence = simulator.get_concurrence()
-        von_neumann_entropy = simulator.get_von_neumann_entropy()
-        is_entangled = concurrence > 0.1
-        witness_value = concurrence - 0.5
+        # Calculate entanglement measures (SKIP for high qubits)
+        if num_qubits <= 14:
+            concurrence = simulator.get_concurrence()
+            von_neumann_entropy = simulator.get_von_neumann_entropy()
+            is_entangled = concurrence > 0.1
+            witness_value = concurrence - 0.5
+        else:
+            concurrence = 0.0
+            von_neumann_entropy = 0.0
+            is_entangled = False
+            witness_value = 0.0
 
         # Calculate results for each qubit
         qubit_results = []
         for i in range(circuit['numQubits']):
+            # For 30 qubits, we ONLY want Bloch vectors. Statevector is too big to send.
+            # Even Bloch vectors might be slow to loop 30 times if not optimized, but O(N) per qubit is fine.
+            
             bloch_vector = simulator.get_bloch_vector(i)
             purity = simulator.get_purity(i)
             bloch_radius = np.sqrt(bloch_vector[0]**2 + bloch_vector[1]**2 + bloch_vector[2]**2)
             reduced_radius = min(bloch_radius, 1.0)
-
-            qubit_results.append({
+            
+            result_entry = {
                 'qubitIndex': i,
                 'blochVector': {'x': bloch_vector[0], 'y': bloch_vector[1], 'z': bloch_vector[2]},
                 'purity': purity,
                 'reducedRadius': reduced_radius,
-                'isEntangled': is_entangled,
+                'isEntangled': is_entangled, # Global property approx
                 'concurrence': concurrence,
                 'vonNeumannEntropy': von_neumann_entropy,
                 'witnessValue': witness_value,
-                'statevector': simulator.get_state_vector() if i == 0 else None
-            })
+                'densityMatrix': simulator.get_qubit_density_matrix(i),
+                'statevector': None # Never send full statevector for visualizer here, too big
+            }
+            
+            # Only attach full statevector for qubit 0 if small enough
+            if i == 0 and num_qubits <= 12:
+                result_entry['statevector'] = simulator.get_state_vector()
+                
+            qubit_results.append(result_entry)
 
         execution_time = time.time() - start_time
 
@@ -295,7 +369,8 @@ def execute_circuit(circuit_data: Dict[str, Any]) -> Dict[str, Any]:
             'qubitResults': qubit_results,
             'executionTime': execution_time,
             'noise': noise_info,
-            'totalCircuitTime': simulator.total_execution_time
+            'totalCircuitTime': simulator.total_execution_time,
+            'approximate': num_qubits > 14 # Flag to frontend that some metrics are skipped
         }
 
     except Exception as e:

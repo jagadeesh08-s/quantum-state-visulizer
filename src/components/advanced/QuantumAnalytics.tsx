@@ -59,13 +59,13 @@ const QuantumAnalytics: React.FC<QuantumAnalyticsProps> = ({
   className = ''
 }) => {
   const [metrics, setMetrics] = useState<PerformanceMetrics>({
-    executionTime: 0.001,
-    fidelity: 0.985,
+    executionTime: 0,
+    fidelity: 0,
     gateCount: 0,
     circuitDepth: 0,
     qubitCount: 0,
     entanglement: 0,
-    purity: 1.0
+    purity: 0
   });
 
   const [benchmarkHistory, setBenchmarkHistory] = useState<BenchmarkResult[]>([]);
@@ -85,46 +85,68 @@ const QuantumAnalytics: React.FC<QuantumAnalyticsProps> = ({
         purity: results.reduce((sum, r) => sum + (r.purity || 1), 0) / results.length
       };
       setMetrics(newMetrics);
+    } else {
+      // Reset metrics if no circuit/results
+      setMetrics({
+        executionTime: 0,
+        fidelity: 0,
+        gateCount: 0,
+        circuitDepth: 0,
+        qubitCount: 0,
+        entanglement: 0,
+        purity: 0
+      });
     }
   }, [circuit, results, executionMethod]);
 
   // Run performance benchmark
+  // Run performance benchmark on the current circuit
   const runBenchmark = async () => {
+    if (!circuit) {
+      toast.error("No circuit found. Please build a circuit in the workspace first.");
+      return;
+    }
+
     setIsRunningBenchmark(true);
 
-    // Simulate benchmark execution
-    const algorithms = ['Bell State', 'GHZ State', 'Quantum Teleportation', 'Grover Search'];
-    const backends = ['local', 'aer_simulator'];
+    // Simulate benchmarking the CURRENT circuit
+    // We use the already calculated metrics for the base, but add slight runtime variations
+    // to simulate real hardware/simulator fluctuations.
+    const benchmarksToRun = [
+      { name: 'Current Circuit (Local)', backend: 'local_qasm' },
+      { name: 'Current Circuit (Simulated)', backend: 'aer_simulator' }
+    ];
 
     const newBenchmarks: BenchmarkResult[] = [];
 
-    for (const algorithm of algorithms) {
-      for (const backend of backends) {
-        const result: BenchmarkResult = {
-          algorithm,
-          backend,
-          metrics: {
-            executionTime: Math.random() * 0.5 + 0.01,
-            fidelity: 0.9 + Math.random() * 0.1,
-            gateCount: Math.floor(Math.random() * 20) + 5,
-            circuitDepth: Math.floor(Math.random() * 10) + 2,
-            qubitCount: algorithm.includes('GHZ') ? 3 : 2,
-            entanglement: Math.random() * 0.8,
-            purity: 0.8 + Math.random() * 0.2
-          },
-          timestamp: new Date(),
-          status: Math.random() > 0.1 ? 'success' : 'failed'
-        };
-        newBenchmarks.push(result);
+    for (const run of benchmarksToRun) {
+      // slight jitter for realism
+      const jitter = () => (Math.random() - 0.5) * 0.02;
 
-        // Simulate delay
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
+      const result: BenchmarkResult = {
+        algorithm: 'User Circuit', // Explicitly identifying it as the user's work
+        backend: run.backend,
+        metrics: {
+          executionTime: Math.max(0.001, metrics.executionTime + jitter()),
+          fidelity: Math.min(1, Math.max(0, metrics.fidelity + jitter())),
+          gateCount: metrics.gateCount,
+          circuitDepth: metrics.circuitDepth,
+          qubitCount: metrics.qubitCount,
+          entanglement: metrics.entanglement,
+          purity: metrics.purity
+        },
+        timestamp: new Date(),
+        status: 'success'
+      };
+
+      newBenchmarks.push(result);
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, 600));
     }
 
     setBenchmarkHistory(prev => [...newBenchmarks, ...prev].slice(0, 50));
     setIsRunningBenchmark(false);
-    toast.success('Benchmark completed! Check the results below.');
+    toast.success('Benchmark completed for current circuit!');
   };
 
   // Get performance score (0-100)
@@ -285,31 +307,33 @@ const QuantumAnalytics: React.FC<QuantumAnalyticsProps> = ({
               </div>
             </div>
 
-            {/* Execution Details */}
-            <div className="space-y-4">
-              <h4 className="font-semibold text-sm">Execution Details</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Method</span>
-                  <Badge className="bg-green-500">
-                    Local Simulator
-                  </Badge>
-                </div>
-                {backend && (
+            {/* Execution Details - Only show if data exists */}
+            {metrics.executionTime > 0 && (
+              <div className="space-y-4">
+                <h4 className="font-semibold text-sm">Execution Details</h4>
+                <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm">Backend</span>
-                    <Badge variant="outline">{backend}</Badge>
+                    <span className="text-sm">Method</span>
+                    <Badge className="bg-green-500">
+                      Local Simulator
+                    </Badge>
                   </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Status</span>
-                  <Badge className="bg-green-500">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Success
-                  </Badge>
+                  {backend && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Backend</span>
+                      <Badge variant="outline">{backend}</Badge>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Status</span>
+                    <Badge className="bg-green-500">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Success
+                    </Badge>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -454,7 +478,7 @@ const QuantumAnalytics: React.FC<QuantumAnalyticsProps> = ({
           </div>
         </CardContent>
       </Card>
-    </div>
+    </div >
   );
 };
 

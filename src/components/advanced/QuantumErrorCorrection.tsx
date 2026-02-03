@@ -38,9 +38,9 @@ import {
   Lightbulb
 } from 'lucide-react';
 import { toast } from 'sonner';
-import BlochSphere3D from './BlochSphere';
-import { simulateCircuit } from '@/utils/quantumSimulation';
-import type { QuantumCircuit } from '@/utils/quantumSimulation';
+import BlochSphere3D from '@/components/core/BlochSphere';
+import { simulateCircuit } from '@/utils/quantum/quantumSimulation';
+import type { QuantumCircuit } from '@/utils/quantum/quantumSimulation';
 
 interface QuantumErrorCorrectionProps {
   onCircuitLoad?: (circuit: QuantumCircuit) => void;
@@ -223,7 +223,7 @@ const QuantumErrorCorrection: React.FC<QuantumErrorCorrectionProps> = ({ onCircu
   // Inject error into circuit
   const injectError = (circuit: QuantumCircuit, error: ErrorInjection): QuantumCircuit => {
     const errorGate = error.errorType === 'bit-flip' ? 'X' :
-                     error.errorType === 'phase-flip' ? 'Z' : 'Y';
+      error.errorType === 'phase-flip' ? 'Z' : 'Y';
 
     return {
       ...circuit,
@@ -268,7 +268,7 @@ const QuantumErrorCorrection: React.FC<QuantumErrorCorrectionProps> = ({ onCircu
 
     // Apply correction based on error location
     const correctionGate = errorInjection.errorType === 'bit-flip' ? 'X' :
-                          errorInjection.errorType === 'phase-flip' ? 'Z' : 'Y';
+      errorInjection.errorType === 'phase-flip' ? 'Z' : 'Y';
 
     return {
       ...circuit,
@@ -672,15 +672,15 @@ const QuantumErrorCorrection: React.FC<QuantumErrorCorrectionProps> = ({ onCircu
                           <h4 className="font-semibold text-primary text-xs mb-2">Learning Resources:</h4>
                           <div className="flex flex-wrap gap-1">
                             <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-primary/20"
-                                   onClick={() => window.open('https://en.wikipedia.org/wiki/Quantum_error_correction', '_blank')}>
+                              onClick={() => window.open('https://en.wikipedia.org/wiki/Quantum_error_correction', '_blank')}>
                               Wikipedia
                             </Badge>
                             <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-primary/20"
-                                   onClick={() => window.open('https://quantum.country/qec', '_blank')}>
+                              onClick={() => window.open('https://quantum.country/qec', '_blank')}>
                               Quantum Country
                             </Badge>
                             <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-primary/20"
-                                   onClick={() => window.open('https://arxiv.org/abs/0905.2794', '_blank')}>
+                              onClick={() => window.open('https://arxiv.org/abs/0905.2794', '_blank')}>
                               Nielsen & Chuang
                             </Badge>
                           </div>
@@ -718,11 +718,10 @@ const QuantumErrorCorrection: React.FC<QuantumErrorCorrectionProps> = ({ onCircu
                                 </div>
                                 <div className="text-center space-y-2">
                                   <div className="text-xs text-muted-foreground font-medium">3. Corrected State</div>
-                                  <div className={`w-20 h-20 rounded-lg flex items-center justify-center border-2 ${
-                                    errorCorrectionResults.success
+                                  <div className={`w-20 h-20 rounded-lg flex items-center justify-center border-2 ${errorCorrectionResults.success
                                       ? 'bg-green-100 dark:bg-green-900/20 border-green-200 dark:border-green-800'
                                       : 'bg-yellow-100 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
-                                  }`}>
+                                    }`}>
                                     {errorCorrectionResults.success ? (
                                       <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
                                     ) : (

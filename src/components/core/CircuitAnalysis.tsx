@@ -87,17 +87,18 @@ const CircuitAnalysis: React.FC<CircuitAnalysisProps> = ({ numQubits, circuitGat
                 </p>
             </CardHeader>
             <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {analyzedQubits.map((qubit) => (
-                        <div key={qubit.index} className="flex flex-col items-center space-y-3 p-4 bg-background/50 rounded-xl border border-border/50">
-                            <div className="text-lg font-bold font-mono text-primary">Qubit {qubit.index}</div>
+                        <div key={qubit.index} className="flex flex-col items-center space-y-6 p-8 bg-background/50 rounded-2xl border border-border/50 shadow-sm transition-all hover:shadow-md">
+                            <div className="text-xl font-bold font-mono text-primary border-b border-primary/20 pb-3 w-full text-center">Qubit {qubit.index}</div>
 
-                            <div className="w-full aspect-square min-h-[250px] relative">
+                            <div className="w-full aspect-square min-h-[350px] max-w-[450px] relative my-4">
                                 <BlochSphere3D
                                     vector={qubit.blochVector}
                                     purity={qubit.purity}
                                     interactive={true}
                                     showAxes={true}
+                                    className="!bg-transparent"
                                 />
                             </div>
 

@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 
 class BackendType(str, Enum):
@@ -8,6 +8,7 @@ class BackendType(str, Enum):
     CUSTOM_SIMULATOR = "custom_simulator"
     WASM = "wasm"
     IBM = "ibm"
+    IBM_QUANTUM = "ibm_quantum"
 
 class QuantumExecutionOptions(BaseModel):
     backend: BackendType
@@ -23,9 +24,9 @@ class QuantumExecutionResult(BaseModel):
     success: bool
     method: str
     backend: str
-    execution_time: float
-    qubit_results: Optional[List[Dict[str, Any]]] = None
-    job_id: Optional[str] = None
+    executionTime: float
+    qubitResults: Optional[List[Dict[str, Any]]] = None
+    jobId: Optional[str] = None
     status: Optional[str] = None
     message: Optional[str] = None
     error: Optional[str] = None

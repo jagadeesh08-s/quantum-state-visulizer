@@ -23,7 +23,9 @@ class QuantumAPI:
             }
 
             if options.backend == BackendType.LOCAL:
+                print(f"DEBUG_BRIDGE: Calling execute_circuit_locally with {list(circuit_data.keys())}", file=sys.stderr)
                 result = execute_circuit_locally(circuit_data)
+                print(f"DEBUG_BRIDGE: execute_circuit_locally returned {type(result)}", file=sys.stderr)
             elif options.backend == BackendType.AER_SIMULATOR:
                 # Use the complex statevector simulator for AER
                 res = execute_qiskit_locally(circuit_data)
@@ -38,21 +40,36 @@ class QuantumAPI:
             else:
                 # Fallback to local
                 result = execute_circuit_locally(circuit_data)
+            import sys
+            import os
+            log_path = os.path.join(os.path.dirname(__file__), "api_debug.log")
+            with open(log_path, "a") as f:
+                f.write(f"Result: {result}\n")
+            
+            print(f"DEBUG_BRIDGE: Result from executor: {result}", file=sys.stderr)
 
             return QuantumExecutionResult(
                 success=result.get("success", False),
                 method=result.get("method", "local"),
                 backend=result.get("backend", "local"),
-                execution_time=result.get("executionTime", 0),
-                qubit_results=result.get("qubitResults"),
+                executionTime=result.get("executionTime", 0),
+                qubitResults=result.get("qubitResults"),
                 error=result.get("error")
             )
         except Exception as e:
+            import traceback
+            err_msg = f"API BRIDGE ERROR: {str(e)}\n{traceback.format_exc()}"
+            print(err_msg, file=sys.stderr)
+            try:
+                with open("bridge_error.log", "w") as f:
+                    f.write(err_msg)
+            except:
+                pass
             return QuantumExecutionResult(
                 success=False,
                 method="error",
                 backend="unknown",
-                execution_time=0,
+                executionTime=0,
                 error=str(e)
             )
 

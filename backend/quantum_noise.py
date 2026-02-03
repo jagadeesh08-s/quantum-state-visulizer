@@ -40,7 +40,8 @@ class NoiseParameters:
     enable_t1_t2: bool = True
     enable_gate_errors: bool = True
     enable_readout_errors: bool = True
-    enable_crosstalk: bool = False
+    enable_crosstalk: bool = True
+    enable_thermal: bool = True
 
 
 class QuantumNoiseModel(ABC):
@@ -184,10 +185,87 @@ class GateErrorModel(QuantumNoiseModel):
 
     def _apply_depolarizing_channel(self, rho: np.ndarray, qubits: List[int], p: float) -> np.ndarray:
         """Apply depolarizing channel to specified qubits"""
-        # Simplified depolarizing channel
-        # In a full implementation, this would be more sophisticated
-        identity = np.eye(rho.shape[0], dtype=complex)
-        return (1 - p) * rho + p * identity / rho.shape[0]
+        num_qubits = int(np.log2(rho.shape[0]))
+        dim = 2**num_qubits
+        
+        # Identity matrix for the full system
+        identity = np.eye(dim, dtype=complex)
+        
+        # For a single qubit depolarizing channel: rho -> (1-p)rho + p*I/2
+        # For multi-qubit, we scale the identity by 2^n where n is the number of targeted qubits
+        # but here we apply it to the whole state as an approximation
+        return (1 - p) * rho + (p / dim) * identity
+
+
+class ThermalNoiseModel(QuantumNoiseModel):
+    """Thermal noise representing initialization errors"""
+
+    def apply_noise(self, state: np.ndarray, time: float, qubit_indices: List[int]) -> np.ndarray:
+        """Apply thermal noise based on temperature"""
+        if not self.params.enable_thermal:
+            return state
+
+        noisy_state = state.copy()
+        
+        # Boltzmann constant in meV/K
+        k_b = 0.08617
+        # Typical energy gap for superconducting qubits in meV (~5GHz)
+        delta_e = 0.02
+        
+        # Excited state population at equilibrium: p1 = 1 / (1 + exp(ΔE/kT))
+        beta = delta_e / (k_b * self.params.temperature) if self.params.temperature > 0 else 100
+        p1 = 1.0 / (1.0 + np.exp(beta))
+        
+        for qubit_idx in qubit_indices:
+            # Thermal noise is essentially a bias towards the mixed thermal state
+            # This is simplified: we mix the state with a thermal state
+            thermal_rho_1q = np.array([[1-p1, 0], [0, p1]], dtype=complex)
+            
+            # Application here is simplified - in reality it's part of T1 relaxation
+            # but we use it as an initialization/static noise here
+            if p1 > 1e-10:
+                noisy_state = self._mix_with_thermal(noisy_state, qubit_idx, p1)
+                
+        return noisy_state
+
+    def _mix_with_thermal(self, rho: np.ndarray, qubit: int, p: float) -> np.ndarray:
+        """Mix state with thermal state for specified qubit"""
+        num_qubits = int(np.log2(rho.shape[0]))
+        # Scale of identity mixing
+        return (1 - p) * rho + (p / rho.shape[0]) * np.eye(rho.shape[0], dtype=complex)
+
+
+class CrosstalkNoiseModel(QuantumNoiseModel):
+    """Noise representing unintended coupling between qubits"""
+
+    def apply_noise(self, state: np.ndarray, time: float, qubit_indices: List[int]) -> np.ndarray:
+        """Apply crosstalk noise"""
+        if not self.params.enable_crosstalk or len(qubit_indices) < 2:
+            return state
+
+        noisy_state = state.copy()
+        strength = self.params.crosstalk_strength
+        
+        # Simplified: apply a small ZZ rotation between all pairs in qubit_indices
+        for i, q1 in enumerate(qubit_indices):
+            for q2 in qubit_indices[i+1:]:
+                # ZZ interaction: exp(-i * strength * time * Z1 * Z2)
+                phi = strength * time * 1e-3 # Scale factor
+                noisy_state = self._apply_zz_crosstalk(noisy_state, q1, q2, phi)
+                
+        return noisy_state
+
+    def _apply_zz_crosstalk(self, rho: np.ndarray, q1: int, q2: int, phi: float) -> np.ndarray:
+        """Apply ZZ crosstalk rotation"""
+        dim = rho.shape[0]
+        U_zz = np.zeros((dim, dim), dtype=complex)
+        
+        for i in range(dim):
+            z1 = 1 if (i >> q1) & 1 else -1
+            z2 = 1 if (i >> q2) & 1 else -1
+            U_zz[i, i] = np.exp(-1j * phi * z1 * z2)
+            
+        return U_zz @ rho @ U_zz.conj().T
 
 
 class ReadoutErrorModel:
@@ -241,6 +319,8 @@ class QuantumNoiseSimulator:
         self.t1t2_model = T1T2NoiseModel(self.params)
         self.gate_error_model = GateErrorModel(self.params)
         self.readout_model = ReadoutErrorModel(self.params)
+        self.thermal_model = ThermalNoiseModel(self.params)
+        self.crosstalk_model = CrosstalkNoiseModel(self.params)
 
     def apply_noise_to_circuit(self, circuit_state: np.ndarray,
                              gate_times: Dict[str, float],
@@ -248,13 +328,19 @@ class QuantumNoiseSimulator:
         """Apply noise accumulated during circuit execution"""
         noisy_state = circuit_state.copy()
 
+        # Apply thermal noise (initialization/static)
+        noisy_state = self.thermal_model.apply_noise(noisy_state, 0, qubit_indices)
+
         # Apply T1/T2 decoherence (accumulated over circuit time)
         total_time = sum(gate_times.values())
         noisy_state = self.t1t2_model.apply_noise(noisy_state, total_time, qubit_indices)
 
-        # Apply gate errors (applied per gate, but approximated here)
+        # Apply gate errors
         for gate_time in gate_times.values():
             noisy_state = self.gate_error_model.apply_noise(noisy_state, gate_time, qubit_indices)
+            
+        # Apply crosstalk
+        noisy_state = self.crosstalk_model.apply_noise(noisy_state, total_time, qubit_indices)
 
         return noisy_state
 
@@ -280,7 +366,8 @@ class QuantumNoiseSimulator:
                 "t1_t2_decoherence": self.params.enable_t1_t2,
                 "gate_errors": self.params.enable_gate_errors,
                 "readout_errors": self.params.enable_readout_errors,
-                "crosstalk": self.params.enable_crosstalk
+                "crosstalk": self.params.enable_crosstalk,
+                "thermal_noise": self.params.enable_thermal
             }
         }
 

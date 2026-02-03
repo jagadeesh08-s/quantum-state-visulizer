@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface AnalyticsEvent {
   id: string;
@@ -77,8 +77,10 @@ export const useAnalytics = () => {
     return sessionId;
   }, []);
 
+  const pendingEventsRef = useRef<any[]>([]);
+
   // Track an event
-  const trackEvent = useCallback(async (action: string, category: string, metadata?: any, duration?: number) => {
+  const trackEvent = useCallback((action: string, category: string, metadata?: any, duration?: number) => {
     const event: AnalyticsEvent = {
       id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date(),
@@ -111,24 +113,47 @@ export const useAnalytics = () => {
     storedEvents.push(event);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storedEvents.slice(-1000)));
 
-    // Send to backend
-    try {
-      await fetch('http://localhost:8000/analytics/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: getUserId(),
-          sessionId: getSessionId(),
-          action,
-          category,
-          duration,
-          metadata
-        })
-      });
-    } catch (e) {
-      console.error('Failed to sync event to backend:', e);
-    }
+    // Queue for backend sync
+    pendingEventsRef.current.push({
+      userId: getUserId(),
+      sessionId: getSessionId(),
+      action,
+      category,
+      duration,
+      metadata
+    });
   }, [getUserId, getSessionId]);
+
+  // Flush queued events periodically to prevent network flooding
+  useEffect(() => {
+    const flushEvents = async () => {
+      if (pendingEventsRef.current.length === 0) return;
+
+      // Take a snapshot of current events and clear the queue
+      const eventsToSend = [...pendingEventsRef.current];
+      pendingEventsRef.current = [];
+
+      // Send events sequentially with a small delay to avoid "INSUFFICIENT_RESOURCES"
+      for (const evt of eventsToSend) {
+        try {
+          await fetch('http://localhost:3005/analytics/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(evt)
+          });
+        } catch (e) {
+          // Silently fail or warn to avoid console spam
+          console.debug('Analytics sync skipped:', e);
+        }
+        // Small throttle between requests
+        await new Promise(r => setTimeout(r, 50));
+      }
+    };
+
+    // Flush every 5 seconds
+    const interval = setInterval(flushEvents, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Track tab changes
   const trackTabChange = useCallback((tabName: string) => {
@@ -173,7 +198,7 @@ export const useAnalytics = () => {
   // Fetch real analytics data from backend
   const fetchBackendAnalytics = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8000/analytics/dashboard');
+      const response = await fetch('http://localhost:3005/analytics/dashboard');
       if (response.ok) {
         const data = await response.json();
         setAnalyticsData(data);

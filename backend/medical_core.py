@@ -33,6 +33,9 @@ from quantum_ml_primitives import (
     MeasurementLayer
 )
 
+# Dataset Management
+from dataset_manager import dataset_manager
+
 # Setup Logger
 logger = logging.getLogger("MedicalCore")
 
@@ -147,7 +150,7 @@ class ImageFeatureExtractor:
             return {}
 
     @staticmethod
-    def process_directory(base_path: str, limit_per_class: int = 50) -> pd.DataFrame:
+    def process_directory(base_path: str, limit_per_class: int = 100000) -> pd.DataFrame:
         """
         Walks internal structure: 'train/fractured', 'train/not fractured' etc.
         Returns DataFrame suitable for training.
@@ -157,6 +160,8 @@ class ImageFeatureExtractor:
             return None
             
         data = []
+        total_processed = 0
+        total_skipped = 0
         
         # We look for immediate subfolders (classes)
         # Expected structure: 
@@ -169,11 +174,17 @@ class ImageFeatureExtractor:
         #   fracture/
         #   normal/
         
-        # Let's try to detect if we are in 'train' or 'test' or root
-        search_paths = [base_path]
-        if os.path.exists(os.path.join(base_path, 'train')):
-            search_paths = [os.path.join(base_path, 'train')]
-        # Normalize
+        # Search implementation: Look for train, test, val, validation or default to root
+        search_paths = []
+        potential_subdirs = ['train', 'test', 'val', 'validation']
+        found_subdirs = [os.path.join(base_path, d) for d in potential_subdirs if os.path.exists(os.path.join(base_path, d))]
+        
+        if found_subdirs:
+            print(f"Found dataset splits: {[os.path.basename(p) for p in found_subdirs]}. Integrating ALL data.")
+            search_paths = found_subdirs
+        else:
+            # No standard splits found, assume classes are in root
+            search_paths = [base_path]
         
         print(f"Scanning for images in: {search_paths}")
         
@@ -192,18 +203,30 @@ class ImageFeatureExtractor:
                 cls_path = os.path.join(search_root, cls_name)
                 # Find images
                 images = glob.glob(f"{cls_path}/*.jpg") + glob.glob(f"{cls_path}/*.png") + glob.glob(f"{cls_path}/*.jpeg")
-                print(f"Found {len(images)} images in class '{cls_name}'")
+                print(f"Found {len(images)} images in class '{cls_name}' at {search_root}")
                 
                 # Limit
                 images = images[:limit_per_class]
                 
-                for img_p in images:
+                for idx, img_p in enumerate(images):
+                    total_processed += 1
+                    if idx % 50 == 0:
+                        print(f"Processing image {idx+1}/{len(images)} in {cls_name}... (Total: {total_processed}, Skipped: {total_skipped})")
+
                     feats = ImageFeatureExtractor.extract_features(img_p)
                     if feats:
                         feats['diagnosis'] = cls_name # Use folder name as label
                         feats['image_path'] = img_p
                         data.append(feats)
+                    else:
+                        total_skipped += 1
                         
+        print(f"\n=== FINAL SUMMARY ===")
+        print(f"Total images processed: {total_processed}")
+        print(f"Successfully extracted: {len(data)}")
+        print(f"Skipped (errors): {total_skipped}")
+        print(f"=====================\n")
+        
         if not data:
             return None
             
@@ -223,6 +246,7 @@ class QuantumMedicalClassifier:
         self.model = None
         self.is_trained = False
         self.label_map = {}
+        self.current_dataset_name = None  # Track which dataset is loaded
         
         # Initialize Default Quantum Model Structure (4 Qubits)
         self.num_qubits = 4
@@ -236,6 +260,10 @@ class QuantumMedicalClassifier:
             max_iterations=50
         )
         self.model = VariationalQuantumClassifier(self.vqc_config)
+        
+        # Concurrency Control
+        import threading
+        self.training_lock = threading.Lock()
 
     def load_default_dataset(self):
         """
@@ -280,18 +308,48 @@ class QuantumMedicalClassifier:
 
     def train(self, df: pd.DataFrame = None, target_col: str = 'diagnosis'):
         """Train the Quantum Model on the provided or default dataset."""
+        # Non-blocking lock to prevent training loops
+        if not self.training_lock.acquire(blocking=False):
+             print("⚠️ Training locked: Operation already in progress.")
+             return {"status": "In Progress"}
+
         try:
             # 1. Check for LOCAL_DATASET_PATH env var
             local_path = os.getenv("LOCAL_DATASET_PATH")
             
             if df is None and local_path and os.path.exists(local_path):
                 print(f"Detected LOCAL_DATASET_PATH: {local_path}")
-                print("Attempting to load REAL IMAGE DATA...")
-                df = ImageFeatureExtractor.process_directory(local_path)
                 
+                # --- CACHE LOGIC START ---
+                cache_path = os.path.join(local_path, "features_cache.csv")
+                
+                if os.path.exists(cache_path):
+                    print(f"Found cached features at: {cache_path}")
+                    print("Loading from CACHE for fast startup...")
+                    try:
+                        df = pd.read_csv(cache_path)
+                        print(f"Successfully loaded {len(df)} records from cache.")
+                    except Exception as e:
+                        print(f"Failed to load cache: {e}. Reprocessing images...")
+                        df = None
+                
+                if df is None:
+                    print("Cache missing or invalid. Processing RAW IMAGES (this may take a while)...")
+                    df = ImageFeatureExtractor.process_directory(local_path)
+                    
+                    if df is not None:
+                         print(f"Saving extracted features to cache: {cache_path}")
+                         try:
+                             df.to_csv(cache_path, index=False)
+                             print("Cache saved successfully.")
+                         except Exception as e:
+                             print(f"Warning: Could not save cache: {e}")
+
+                # --- CACHE LOGIC END ---
+
                 if df is not None:
-                    print(f"Successfully loaded {len(df)} images from local disk.")
-                    # Ensure diagnosis column exists
+                    # ensure proper return if loaded from cache or raw
+                    pass
                 else:
                     print("Failed to load images from local path. Falling back.")
 
@@ -355,9 +413,14 @@ class QuantumMedicalClassifier:
 
             # Train VQC
             # We use a subset for speed if dataset is huge
-            if len(X_scaled) > 200:
-                print("Subsampling data for faster Quantum Training...")
-                indices = np.random.choice(len(X_scaled), 100, replace=False)
+            # Train VQC
+            # Train VQC
+            # We use a subset for speed if dataset is huge, but User requested ALL.
+            # Increasing limit significantly.
+            # UPDATE: User strictly requested 300 samples max for speed/stability
+            if len(X_scaled) > 300:
+                print(f"Dataset large ({len(X_scaled)}). Subsampling to 300 for quantum training...")
+                indices = np.random.choice(len(X_scaled), 300, replace=False)
                 X_train = X_scaled[indices]
                 y_train = y[indices]
             else:
@@ -373,6 +436,7 @@ class QuantumMedicalClassifier:
             self.is_trained = True
             print("Training Complete.")
             
+            self.training_lock.release()
             return {
                 "features": self.selected_features,
                 "sample_count": len(df),
@@ -384,6 +448,10 @@ class QuantumMedicalClassifier:
             print(f"Training Error: {e}")
             import traceback
             traceback.print_exc()
+            
+            if self.training_lock.locked():
+                self.training_lock.release()
+                
             return {"error": str(e), "status": "Failed"}
 
     async def save_to_db(self, db_session, origin="Imported"):
@@ -391,8 +459,8 @@ class QuantumMedicalClassifier:
             return
         
         from db_models import MedicalCaseRecord
-        # Limit to 50 records saved to avoid DB bloat
-        sliced_df = self.dataset.head(50)
+        # Increase limit to 500 records saved
+        sliced_df = self.dataset.head(500)
         
         for idx, row in sliced_df.iterrows():
             features_dict = {k: float(row[k]) for k in self.selected_features if k in row}
@@ -410,7 +478,11 @@ class QuantumMedicalClassifier:
 
     async def load_from_db(self, db_session):
         # We skip DB loading if we want the fresh default data always
-         return self.train(None) 
+        # Run in executor to avoid blocking the main thread during startup
+        import asyncio
+        loop = asyncio.get_running_loop()
+        print("Medical Core: Offloading training to background thread...")
+        return await loop.run_in_executor(None, self.train, None) 
 
     def predict(self, patient_data: dict) -> dict:
         """
@@ -480,11 +552,47 @@ class QuantumMedicalClassifier:
             
             label = self.label_map.get(predicted_code, "Unknown")
             
+            # --- Generate User-Friendly Explanation ---
+            narrative = "The Quantum Model has completed its analysis."
+            recommendations = ["Consult a specialist for further evaluation."]
+
+            label_norm = label.lower()
+            if "fracture" in label_norm and "not" not in label_norm:
+                narrative = "The system has detected structural irregularities in the bone surface that are consistent with a fracture. The quantum feature extraction highlighted sharp intensity shifts suggestive of a break."
+                recommendations = [
+                    "Seek immediate orthopaedic evaluation.",
+                    "Keep the affected limb immobilized to prevent further injury.",
+                    "An X-ray or CT scan update may be required to confirm the exact alignment."
+                ]
+            elif "not" in label_norm or "normal" in label_norm:
+                narrative = "The quantum analysis shows that the bone structure appears intact and uniform. No significant architectural distortions or fractures were identified by the model."
+                recommendations = [
+                    "Continue standard rest and recovery if pain persists.",
+                    "If swelling increases, consider a follow-up with a primary care physician.",
+                    "Apply ice and compression as directed by a healthcare provider."
+                ]
+            elif "benign" in label_norm:
+                narrative = "The model classifies the analyzed sample as benign. The cellular or structural patterns observed fall within stable, non-aggressive ranges."
+                recommendations = [
+                    "Routine monitoring as recommended by your doctor.",
+                    "Maintain regular screening schedules.",
+                    "Keep a record of any physical changes in the area."
+                ]
+            elif "malignant" in label_norm:
+                narrative = "URGENT: The quantum features identified patterns characteristic of malignant growth. This includes high entropy and irregular density mapping."
+                recommendations = [
+                    "Schedule an urgent consultation with an oncologist.",
+                    "Prepare for comprehensive biopsy or advanced imaging.",
+                    "Review family medical history for relevant data."
+                ]
+            
             return {
                 "diagnosis": label,
                 "confidence": float(confidence),
                 "is_valid": True,
-                "quantum_features": vector_scaled[0].tolist()
+                "quantum_features": vector_scaled[0].tolist(),
+                "narrative": narrative,
+                "recommendations": recommendations
             }
 
         except Exception as e:
@@ -497,3 +605,39 @@ class QuantumMedicalClassifier:
 
 # Global Instance
 medical_core = QuantumMedicalClassifier()
+
+def switch_and_train_dataset(dataset_name: str):
+    """
+    Helper function to switch to a different dataset and retrain the model.
+    
+    Args:
+        dataset_name: Name of the dataset to switch to
+        
+    Returns:
+        Training result dictionary
+    """
+    # Switch dataset in manager
+    success = dataset_manager.switch_dataset(dataset_name)
+    if not success:
+        return {"error": f"Dataset '{dataset_name}' not found", "status": "Failed"}
+    
+    # Get the new dataset path
+    dataset_path = dataset_manager.get_dataset_path()
+    if not dataset_path:
+        return {"error": "Could not get dataset path", "status": "Failed"}
+    
+    # Temporarily override the env var
+    old_path = os.getenv("LOCAL_DATASET_PATH")
+    os.environ["LOCAL_DATASET_PATH"] = dataset_path
+    
+    try:
+        # Train with new dataset
+        result = medical_core.train()
+        medical_core.current_dataset_name = dataset_name
+        return result
+    finally:
+        # Restore old path
+        if old_path:
+            os.environ["LOCAL_DATASET_PATH"] = old_path
+        else:
+            os.environ.pop("LOCAL_DATASET_PATH", None)

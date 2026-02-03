@@ -26,46 +26,9 @@ import {
   Award,
   Zap
 } from 'lucide-react';
+import { useTutorial, LearningGoal, LearningStep } from '@/contexts/TutorialContext';
 
-interface LearningStep {
-  id: string;
-  title: string;
-  description: string;
-  instruction: string;
-  expectedAction: {
-    type: 'switch_tab' | 'add_gate' | 'run_simulation' | 'check_result';
-    tab?: 'circuit' | 'code' | 'visualization';
-    gate?: {
-      name: string;
-      qubits: number[];
-      parameters?: number[];
-    };
-    circuitCheck?: {
-      requiredGates: Array<{
-        name: string;
-        qubits: number[];
-        position?: number;
-      }>;
-    };
-    resultCheck?: {
-      expectedProbabilities?: number[];
-      expectedEntanglement?: boolean;
-    };
-  };
-  hints: string[];
-  successMessage: string;
-}
-
-interface LearningGoal {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  estimatedTime: number; // minutes
-  prerequisites: string[];
-  topics: string[];
-  steps: LearningStep[];
-}
+// Using types from TutorialContext
 
 interface Achievement {
   id: string;
@@ -96,26 +59,11 @@ interface UserProgress {
   achievements: Achievement[];
 }
 
-interface InteractiveSession {
-  goalId: string;
-  currentStepIndex: number;
-  completedSteps: string[];
-  isActive: boolean;
-  startTime: Date;
-  lastActivity: Date;
-}
-
-interface CircuitState {
-  currentCircuit: any; // QuantumCircuit
-  simulationResults: any; // Simulation results
-  activeTab: string;
-}
+// Using types from TutorialContext
 
 interface AITutorProps {
   onGoalComplete?: (goalId: string) => void;
-  onRequestTabSwitch?: (tab: string, reason: string) => void;
-  circuitState?: CircuitState;
-  onStepComplete?: (goalId: string, stepId: string) => void;
+  // circuitState prop is no longer needed as we use the global context
 }
 
 const LEARNING_GOALS: LearningGoal[] = [
@@ -191,7 +139,32 @@ const LEARNING_GOALS: LearningGoal[] = [
     estimatedTime: 60,
     prerequisites: [],
     topics: ['Qubits', 'Superposition', 'Entanglement', 'Measurement'],
-    steps: []
+    steps: [
+      {
+        id: 'basics_intro',
+        title: 'Welcome to Quantum Basics',
+        description: 'Start your journey into quantum computing',
+        instruction: 'Click on the "Circuit" tab to start building your first basic circuit.',
+        expectedAction: {
+          type: 'switch_tab',
+          tab: 'circuit'
+        },
+        hints: ['The Circuit tab is where all quantum magic starts'],
+        successMessage: 'Welcome to the lab!'
+      },
+      {
+        id: 'basics_x_gate',
+        title: 'The NOT Gate',
+        description: 'Flip a qubit from 0 to 1',
+        instruction: 'Add an X (NOT) gate to qubit 0.',
+        expectedAction: {
+          type: 'add_gate',
+          gate: { name: 'X', qubits: [0] }
+        },
+        hints: ['The X gate represents a 180-degree rotation around the X-axis'],
+        successMessage: 'Qubit 1 is now |1⟩!'
+      }
+    ]
   },
   {
     id: 'quantum_gates',
@@ -279,11 +252,45 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
 ];
 
 export const AITutor: React.FC<AITutorProps> = ({
-  onGoalComplete,
-  onRequestTabSwitch,
-  circuitState,
-  onStepComplete
+  onGoalComplete
 }) => {
+  const { startSession, session: interactiveSession, selectedGoal: activeSessionGoal } = useTutorial();
+  const activeGoalTitle = activeSessionGoal?.title || '';
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'beginner': return 'bg-green-500';
+      case 'intermediate': return 'bg-yellow-500';
+      case 'advanced': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getRarityColor = (rarity: string) => {
+    switch (rarity) {
+      case 'common': return 'border-gray-300 text-gray-600';
+      case 'rare': return 'border-blue-300 text-blue-600';
+      case 'epic': return 'border-purple-300 text-purple-600';
+      case 'legendary': return 'border-yellow-300 text-yellow-600';
+      default: return 'border-gray-300 text-gray-600';
+    }
+  };
+
+  const startInteractiveSession = (goal: LearningGoal) => {
+    startSession(goal);
+    setActiveTab('goals');
+  };
+
+  const completeGoal = (goalId: string) => {
+    setUserProgress(prev => ({
+      ...prev,
+      completedGoals: [...prev.completedGoals, goalId],
+      experience: prev.experience + 50,
+      currentStreak: prev.currentStreak + 1
+    }));
+
+    onGoalComplete?.(goalId);
+  };
   const [userProgress, setUserProgress] = useState<UserProgress>({
     level: 1,
     experience: 0,
@@ -294,17 +301,12 @@ export const AITutor: React.FC<AITutorProps> = ({
     achievements: INITIAL_ACHIEVEMENTS
   });
 
-  const [selectedGoal, setSelectedGoal] = useState<LearningGoal | null>(null);
+  const [previewGoal, setPreviewGoal] = useState<LearningGoal | null>(null);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'goals' | 'progress' | 'achievements'>('goals');
-
-  // Interactive tutoring state
-  const [interactiveSession, setInteractiveSession] = useState<InteractiveSession | null>(null);
-  const [currentStepFeedback, setCurrentStepFeedback] = useState<string>('');
-  const [showHint, setShowHint] = useState(false);
 
   const askQuestion = async () => {
     if (!currentQuestion.trim()) return;
@@ -360,182 +362,7 @@ export const AITutor: React.FC<AITutorProps> = ({
     }
   };
 
-  // Circuit monitoring and step completion detection
-  const checkStepCompletion = (step: LearningStep): boolean => {
-    if (!circuitState) {
-      console.log('checkStepCompletion: No circuitState available');
-      return false;
-    }
-
-    console.log('checkStepCompletion called for step:', step.id, 'type:', step.expectedAction.type);
-
-    switch (step.expectedAction.type) {
-      case 'switch_tab':
-        const isTabCorrect = circuitState.activeTab === step.expectedAction.tab;
-        console.log('Tab switch check:', {
-          currentTab: circuitState.activeTab,
-          expectedTab: step.expectedAction.tab,
-          isCorrect: isTabCorrect
-        });
-        return isTabCorrect;
-
-      case 'add_gate':
-        if (!circuitState.currentCircuit?.gates) {
-          console.log('Add gate check: No circuit or gates');
-          return false;
-        }
-        const hasGate = circuitState.currentCircuit.gates.some(gate =>
-          gate.name === step.expectedAction.gate?.name &&
-          JSON.stringify(gate.qubits) === JSON.stringify(step.expectedAction.gate?.qubits)
-        );
-        console.log('Add gate check:', {
-          expectedGate: step.expectedAction.gate,
-          currentGates: circuitState.currentCircuit.gates,
-          hasGate
-        });
-        return hasGate;
-
-      case 'run_simulation':
-        const hasResults = circuitState.simulationResults !== null;
-        console.log('Run simulation check:', {
-          hasSimulationResults: hasResults,
-          simulationResults: circuitState.simulationResults
-        });
-        return hasResults;
-
-      case 'check_result':
-        if (!circuitState.simulationResults) {
-          console.log('Check result: No simulation results');
-          return false;
-        }
-        // Check if results match expected outcomes
-        if (step.expectedAction.resultCheck?.expectedProbabilities) {
-          const actualProbs = circuitState.simulationResults.probabilities || [];
-          const matches = step.expectedAction.resultCheck.expectedProbabilities.every(
-            (expected, index) => Math.abs(actualProbs[index] - expected) < 0.01
-          );
-          console.log('Check result probabilities:', {
-            expected: step.expectedAction.resultCheck.expectedProbabilities,
-            actual: actualProbs,
-            matches
-          });
-          return matches;
-        }
-        console.log('Check result: No specific checks, returning true');
-        return true;
-
-      default:
-        console.log('Unknown step type:', step.expectedAction.type);
-        return false;
-    }
-  };
-
-  const startInteractiveSession = (goal: LearningGoal) => {
-    console.log('🎯 Starting interactive session for goal:', goal.id);
-    console.log('📊 Current circuitState:', circuitState);
-
-    setSelectedGoal(goal);
-    setInteractiveSession({
-      goalId: goal.id,
-      currentStepIndex: 0,
-      completedSteps: [],
-      isActive: true,
-      startTime: new Date(),
-      lastActivity: new Date()
-    });
-
-    // Set initial feedback for the first step
-    const firstStep = goal.steps[0];
-    if (firstStep) {
-      console.log('📝 Setting initial feedback for first step:', firstStep.id);
-      if (firstStep.expectedAction.type === 'switch_tab' &&
-        circuitState?.activeTab !== firstStep.expectedAction.tab) {
-        setCurrentStepFeedback(`Please switch to the ${firstStep.expectedAction.tab} tab to continue.`);
-      } else {
-        setCurrentStepFeedback(firstStep.instruction);
-      }
-    }
-
-    setShowHint(false);
-    setActiveTab('goals');
-  };
-
-  const completeCurrentStep = () => {
-    if (!interactiveSession || !selectedGoal) return;
-
-    const currentStep = selectedGoal.steps[interactiveSession.currentStepIndex];
-    const stepId = currentStep.id;
-    const isLastStep = interactiveSession.currentStepIndex >= selectedGoal.steps.length - 1;
-
-    // Mark step as completed
-    setInteractiveSession(prev => prev ? {
-      ...prev,
-      completedSteps: [...prev.completedSteps, stepId],
-      lastActivity: new Date()
-    } : null);
-
-    // Notify parent about step completion
-    onStepComplete?.(interactiveSession.goalId, stepId);
-
-    // Show success message
-    setCurrentStepFeedback(currentStep.successMessage);
-
-    // Award experience
-    setUserProgress(prev => ({
-      ...prev,
-      experience: prev.experience + 25,
-      totalStudyTime: prev.totalStudyTime + 2
-    }));
-
-    // Auto-advance to next step or complete goal
-    setTimeout(() => {
-      if (!isLastStep) {
-        // Move to next step
-        setInteractiveSession(prev => prev ? {
-          ...prev,
-          currentStepIndex: prev.currentStepIndex + 1
-        } : null);
-        setCurrentStepFeedback('');
-        setShowHint(false);
-      } else {
-        // Complete the goal
-        completeGoal(interactiveSession.goalId);
-        setInteractiveSession(null);
-        setCurrentStepFeedback('🎉 Congratulations! You\'ve completed this learning goal!');
-      }
-    }, 2000);
-  };
-
-  const completeGoal = (goalId: string) => {
-    setUserProgress(prev => ({
-      ...prev,
-      completedGoals: [...prev.completedGoals, goalId],
-      experience: prev.experience + 50,
-      currentStreak: prev.currentStreak + 1
-    }));
-
-    // Notify parent component about goal completion
-    onGoalComplete?.(goalId);
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner': return 'bg-green-500';
-      case 'intermediate': return 'bg-yellow-500';
-      case 'advanced': return 'bg-red-500';
-      default: return 'bg-gray-500';
-    }
-  };
-
-  const getRarityColor = (rarity: string) => {
-    switch (rarity) {
-      case 'common': return 'border-gray-300 text-gray-600';
-      case 'rare': return 'border-blue-300 text-blue-600';
-      case 'epic': return 'border-purple-300 text-purple-600';
-      case 'legendary': return 'border-yellow-300 text-yellow-600';
-      default: return 'border-gray-300 text-gray-600';
-    }
-  };
+  // Circuit monitoring is now handled in TutorialContext.tsx
 
   // Level up logic
   useEffect(() => {
@@ -557,104 +384,6 @@ export const AITutor: React.FC<AITutorProps> = ({
       }));
     }
   }, [userProgress.experience, userProgress.level]);
-
-  // Real-time circuit monitoring for interactive tutoring
-  useEffect(() => {
-    console.log('🔍 Circuit monitoring useEffect triggered:', {
-      hasInteractiveSession: !!interactiveSession,
-      hasSelectedGoal: !!selectedGoal,
-      hasCircuitState: !!circuitState,
-      circuitState: circuitState ? {
-        activeTab: circuitState.activeTab,
-        hasCircuit: !!circuitState.currentCircuit,
-        hasSimulationResults: !!circuitState.simulationResults
-      } : null
-    });
-
-    if (!interactiveSession || !selectedGoal || !circuitState) {
-      console.log('❌ Skipping step check - missing required state');
-      return;
-    }
-
-    const currentStep = selectedGoal.steps[interactiveSession.currentStepIndex];
-    if (!currentStep) {
-      console.log('❌ No current step found');
-      return;
-    }
-
-    console.log('📋 Current step:', {
-      id: currentStep.id,
-      title: currentStep.title,
-      type: currentStep.expectedAction.type,
-      expectedTab: currentStep.expectedAction.tab
-    });
-
-    // Check if current step is completed
-    const isCompleted = checkStepCompletion(currentStep);
-
-    console.log('✅ Step completion check:', {
-      stepId: currentStep.id,
-      isCompleted,
-      alreadyCompleted: interactiveSession.completedSteps.includes(currentStep.id)
-    });
-
-    if (isCompleted && !interactiveSession.completedSteps.includes(currentStep.id)) {
-      console.log('🚀 Auto-completing step:', currentStep.id);
-      completeCurrentStep();
-    } else if (!isCompleted) {
-      console.log('⏳ Step not completed, checking for feedback...');
-
-      // Check if user is in wrong tab and needs redirect
-      if (currentStep.expectedAction.type === 'switch_tab' &&
-        currentStep.expectedAction.tab &&
-        circuitState.activeTab !== currentStep.expectedAction.tab) {
-        const feedback = `Please switch to the ${currentStep.expectedAction.tab} tab to continue.`;
-        console.log('📢 Setting tab switch feedback:', feedback);
-        setCurrentStepFeedback(feedback);
-        onRequestTabSwitch?.(currentStep.expectedAction.tab, `Required for: ${currentStep.title}`);
-      } else if (currentStep.expectedAction.type !== 'switch_tab') {
-        // Provide contextual feedback based on current state
-        const feedback = getContextualFeedback(currentStep, circuitState);
-        if (feedback) {
-          console.log('💬 Setting contextual feedback:', feedback);
-          setCurrentStepFeedback(feedback);
-        } else {
-          console.log('🤔 No contextual feedback available');
-        }
-      } else {
-        console.log('✅ User is already on correct tab for step:', currentStep.id);
-        // If user is on correct tab but step isn't completed, provide instruction
-        if (currentStep.expectedAction.type === 'switch_tab') {
-          setCurrentStepFeedback(currentStep.successMessage);
-        }
-      }
-    }
-  }, [circuitState, interactiveSession, selectedGoal]);
-
-  const getContextualFeedback = (step: LearningStep, circuitState: CircuitState): string => {
-    switch (step.expectedAction.type) {
-      case 'add_gate':
-        if (!circuitState.currentCircuit?.gates?.length) {
-          return "Start by adding the required gate to your circuit.";
-        }
-        const hasGate = circuitState.currentCircuit.gates.some(gate =>
-          gate.name === step.expectedAction.gate?.name
-        );
-        if (!hasGate) {
-          return `Add a ${step.expectedAction.gate?.name} gate to continue.`;
-        }
-        return "You're on the right track! Make sure the gate is connected correctly.";
-
-      case 'run_simulation':
-        if (!circuitState.simulationResults) {
-          return "Run a simulation to see your circuit's behavior.";
-        }
-        return "Great! Check the results to see if they match the expected outcome.";
-
-      default:
-        return step.instruction;
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -679,10 +408,7 @@ export const AITutor: React.FC<AITutorProps> = ({
             )}
           </h2>
           <p className="text-muted-foreground">
-            {interactiveSession
-              ? `Guiding you through: ${selectedGoal?.title}`
-              : "Your personal guide to mastering quantum computing"
-            }
+            {interactiveSession ? `Guiding you through: ${activeGoalTitle}` : "Your personal guide to mastering quantum computing"}
           </p>
         </div>
       </div>
@@ -745,130 +471,7 @@ export const AITutor: React.FC<AITutorProps> = ({
         </TabsList>
 
         <TabsContent value="goals" className="space-y-6">
-          {/* Interactive Tutoring Session */}
-          {interactiveSession && selectedGoal && (() => {
-            console.log('Rendering interactive session UI:', {
-              session: interactiveSession,
-              goal: selectedGoal.id,
-              currentStepIndex: interactiveSession.currentStepIndex,
-              totalSteps: selectedGoal.steps.length
-            });
-            return true;
-          })() && (
-              <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-secondary/5">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    Interactive Learning Session
-                  </CardTitle>
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-primary">
-                      Step {interactiveSession.currentStepIndex + 1} of {selectedGoal.steps.length}
-                    </Badge>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setInteractiveSession(null);
-                        setSelectedGoal(null);
-                        setCurrentStepFeedback('');
-                      }}
-                    >
-                      End Session
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {(() => {
-                    const currentStep = selectedGoal.steps[interactiveSession.currentStepIndex];
-                    return (
-                      <div className="space-y-4">
-                        <div className="text-center">
-                          <h3 className="text-lg font-bold mb-2">{currentStep.title}</h3>
-                          <p className="text-muted-foreground">{currentStep.description}</p>
-                        </div>
-
-                        <Alert className="border-blue-500/30 bg-blue-500/5">
-                          <Lightbulb className="h-4 w-4 text-blue-500" />
-                          <AlertDescription className="text-blue-700 dark:text-blue-300">
-                            {currentStep.instruction}
-                          </AlertDescription>
-                        </Alert>
-
-                        {/* Always show current status */}
-                        <div className="text-sm text-muted-foreground">
-                          Status: {interactiveSession.completedSteps.includes(currentStep.id) ?
-                            '✅ Completed' :
-                            checkStepCompletion(currentStep) ?
-                              '🎯 Ready to complete' :
-                              '⏳ In progress'}
-                        </div>
-
-                        {currentStepFeedback && (
-                          <Alert className={`border-green-500/30 bg-green-500/5 ${currentStepFeedback.includes('Please switch') ? 'border-orange-500/30 bg-orange-500/5' : ''
-                            }`}>
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                            <AlertDescription className="text-green-700 dark:text-green-300">
-                              {currentStepFeedback}
-                            </AlertDescription>
-                          </Alert>
-                        )}
-
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowHint(!showHint)}
-                          >
-                            <HelpCircle className="w-4 h-4 mr-2" />
-                            {showHint ? 'Hide' : 'Show'} Hint
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (interactiveSession && selectedGoal) {
-                                const currentStep = selectedGoal.steps[interactiveSession.currentStepIndex];
-                                const isCompleted = checkStepCompletion(currentStep);
-                                if (isCompleted && !interactiveSession.completedSteps.includes(currentStep.id)) {
-                                  completeCurrentStep();
-                                } else {
-                                  setCurrentStepFeedback('Step not yet completed. Follow the instructions above.');
-                                }
-                              }
-                            }}
-                          >
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Check Progress
-                          </Button>
-                        </div>
-
-                        {showHint && (
-                          <Alert className="border-yellow-500/30 bg-yellow-500/5">
-                            <HelpCircle className="h-4 w-4 text-yellow-500" />
-                            <AlertDescription className="text-yellow-700 dark:text-yellow-300">
-                              {currentStep.hints[Math.floor(Math.random() * currentStep.hints.length)]}
-                            </AlertDescription>
-                          </Alert>
-                        )}
-
-                        {/* Progress Indicator */}
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Session Progress</span>
-                            <span>{interactiveSession.completedSteps.length}/{selectedGoal.steps.length} steps</span>
-                          </div>
-                          <Progress
-                            value={(interactiveSession.completedSteps.length / selectedGoal.steps.length) * 100}
-                            className="h-2"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
-            )}
+          {/* Interactive Tutoring Session Info moved to Overlay */}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
@@ -889,12 +492,12 @@ export const AITutor: React.FC<AITutorProps> = ({
                     <div
                       key={goal.id}
                       className={`p-4 border rounded-lg transition-all ${isCompleted
-                          ? 'border-green-500 bg-green-500/5'
-                          : canStart
-                            ? 'border-primary/50 hover:border-primary cursor-pointer'
-                            : 'border-gray-300 opacity-60'
+                        ? 'border-green-500 bg-green-500/5'
+                        : canStart
+                          ? 'border-primary/50 hover:border-primary cursor-pointer'
+                          : 'border-gray-300 opacity-60'
                         }`}
-                      onClick={() => canStart && !isCompleted && setSelectedGoal(goal)}
+                      onClick={() => canStart && !isCompleted && setPreviewGoal(goal)}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="font-semibold">{goal.title}</h4>
@@ -932,28 +535,28 @@ export const AITutor: React.FC<AITutorProps> = ({
                 <CardTitle>Goal Details</CardTitle>
               </CardHeader>
               <CardContent>
-                {selectedGoal ? (
+                {previewGoal ? (
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-xl font-bold mb-2">{selectedGoal.title}</h3>
-                      <p className="text-muted-foreground mb-4">{selectedGoal.description}</p>
+                      <h3 className="text-xl font-bold mb-2">{previewGoal.title}</h3>
+                      <p className="text-muted-foreground mb-4">{previewGoal.description}</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">Difficulty:</span>
-                        <div className="font-medium capitalize">{selectedGoal.difficulty}</div>
+                        <div className="font-medium capitalize">{previewGoal.difficulty}</div>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Estimated Time:</span>
-                        <div className="font-medium">{selectedGoal.estimatedTime} minutes</div>
+                        <div className="font-medium">{previewGoal.estimatedTime} minutes</div>
                       </div>
                     </div>
 
                     <div>
                       <h4 className="font-semibold mb-2">Topics Covered:</h4>
                       <div className="flex flex-wrap gap-2">
-                        {selectedGoal.topics.map((topic, index) => (
+                        {previewGoal.topics.map((topic, index) => (
                           <Badge key={index} variant="outline">
                             {topic}
                           </Badge>
@@ -962,13 +565,13 @@ export const AITutor: React.FC<AITutorProps> = ({
                     </div>
 
                     <div className="space-y-2">
-                      {selectedGoal.steps.length > 0 ? (
+                      {previewGoal.steps.length > 0 ? (
                         <Button
-                          onClick={() => startInteractiveSession(selectedGoal)}
+                          onClick={() => startInteractiveSession(previewGoal)}
                           className="w-full"
-                          disabled={userProgress.completedGoals.includes(selectedGoal.id)}
+                          disabled={userProgress.completedGoals.includes(previewGoal.id)}
                         >
-                          {userProgress.completedGoals.includes(selectedGoal.id) ? (
+                          {userProgress.completedGoals.includes(previewGoal.id) ? (
                             <>
                               <CheckCircle className="w-4 h-4 mr-2" />
                               Completed
@@ -982,11 +585,11 @@ export const AITutor: React.FC<AITutorProps> = ({
                         </Button>
                       ) : (
                         <Button
-                          onClick={() => completeGoal(selectedGoal.id)}
+                          onClick={() => completeGoal(previewGoal.id)}
                           className="w-full"
-                          disabled={userProgress.completedGoals.includes(selectedGoal.id)}
+                          disabled={userProgress.completedGoals.includes(previewGoal.id)}
                         >
-                          {userProgress.completedGoals.includes(selectedGoal.id) ? (
+                          {userProgress.completedGoals.includes(previewGoal.id) ? (
                             <>
                               <CheckCircle className="w-4 h-4 mr-2" />
                               Completed
@@ -1000,9 +603,9 @@ export const AITutor: React.FC<AITutorProps> = ({
                         </Button>
                       )}
 
-                      {selectedGoal.steps.length > 0 && !userProgress.completedGoals.includes(selectedGoal.id) && (
+                      {previewGoal.steps.length > 0 && !userProgress.completedGoals.includes(previewGoal.id) && (
                         <p className="text-xs text-muted-foreground text-center">
-                          This goal includes {selectedGoal.steps.length} interactive steps with real-time guidance
+                          This goal includes {previewGoal.steps.length} interactive steps with real-time guidance
                         </p>
                       )}
                     </div>
@@ -1078,8 +681,8 @@ export const AITutor: React.FC<AITutorProps> = ({
               <Card
                 key={achievement.id}
                 className={`transition-all ${achievement.unlocked
-                    ? 'border-yellow-500/50 bg-yellow-500/5'
-                    : 'border-gray-200 opacity-75'
+                  ? 'border-yellow-500/50 bg-yellow-500/5'
+                  : 'border-gray-200 opacity-75'
                   }`}
               >
                 <CardContent className="p-4">

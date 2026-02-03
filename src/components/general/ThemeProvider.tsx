@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react"
 
-export type Theme = 'light' | 'dark' | 'system' | 'quantum' | 'neon' | 'minimal' | 'cosmic' | 'retro' | 'quantum-light' | 'superposition' | 'entanglement' | 'tunneling' | 'decoherence';
+export type Theme = 'quantum-light' | 'quantum-dark' | 'system' | 'cosmic';
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -15,7 +15,7 @@ type ThemeProviderState = {
 }
 
 const initialState: ThemeProviderState = {
-  theme: "quantum",
+  theme: "quantum-dark",
   setTheme: () => null,
 }
 
@@ -23,7 +23,7 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 
 export function ThemeProvider({
   children,
-  defaultTheme = "quantum",
+  defaultTheme = "quantum-light",
   storageKey = "vite-ui-theme",
   ...props
 }: ThemeProviderProps) {
@@ -34,13 +34,13 @@ export function ThemeProvider({
   useEffect(() => {
     const root = window.document.documentElement
 
-    root.classList.remove("light", "dark", "quantum", "neon", "minimal", "cosmic", "retro", "quantum-light", "superposition", "entanglement", "tunneling", "decoherence")
+    root.classList.remove("quantum-light", "quantum-dark", "cosmic")
 
     if (theme === "system") {
       const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
         .matches
-        ? "dark"
-        : "light"
+        ? "quantum-dark"
+        : "quantum-light"
 
       root.classList.add(systemTheme)
       return

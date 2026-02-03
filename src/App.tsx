@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/components/general/ThemeProvider';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { TourProvider } from '@/contexts/TourContext';
 import { IBMQuantumProvider } from '@/contexts/IBMQuantumContext';
+import { TutorialProvider } from '@/contexts/TutorialContext';
 
 import ErrorBoundary from '@/components/general/ErrorBoundary';
 import Landing from '@/pages/Landing';
@@ -41,13 +42,15 @@ function App() {
           <AuthProvider>
             <IBMQuantumProvider>
               <TourProvider>
-                <Router>
-                  <Routes>
-                    <Route path="/" element={<Landing />} />
-                    <Route path="/workspace" element={<Workspace />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Router>
+                <TutorialProvider>
+                  <Router>
+                    <Routes>
+                      <Route path="/" element={<Landing />} />
+                      <Route path="/workspace" element={<Workspace />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Router>
+                </TutorialProvider>
               </TourProvider>
             </IBMQuantumProvider>
           </AuthProvider>

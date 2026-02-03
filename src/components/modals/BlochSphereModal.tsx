@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { X } from 'lucide-react';
-import BlochSphere3D from '../core/BlochSphere';
+import BlochSphere3D, { BlochProbabilities } from '../core/BlochSphere';
 import type { DensityMatrix } from '@/utils/quantum/quantumSimulation';
 
 interface BlochSphereModalProps {
@@ -97,6 +97,15 @@ const BlochSphereModal: React.FC<BlochSphereModalProps> = ({
                               </div>
                             </div>
                           </div>
+                        </div>
+
+                        {/* Measurement Probabilities */}
+                        <div className="pt-2 border-t border-slate-700/50">
+                          <BlochProbabilities
+                            vector={mapVector(result.blochVector)}
+                            isDark={true}
+                            className="bg-slate-900/50 border-slate-600/20"
+                          />
                         </div>
                       </CardContent>
                     </Card>

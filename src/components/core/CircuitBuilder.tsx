@@ -72,6 +72,7 @@ interface CircuitBuilderProps {
   numQubits: number;
   onQubitCountChange: (count: number) => void;
   initialCircuit?: CircuitData; // Circuit to load initially
+  isPerformanceMode?: boolean;
 }
 
 export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
@@ -79,7 +80,8 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
   onKetStatesChange,
   numQubits,
   onQubitCountChange,
-  initialCircuit
+  initialCircuit,
+  isPerformanceMode = false
 }) => {
   const [circuitGates, setCircuitGates] = useState<CircuitGate[]>([]);
   const [draggedGate, setDraggedGate] = useState<GateProps | null>(null);
@@ -586,11 +588,11 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
             <CardHeader>
               <CardTitle className="text-lg flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                  Circuit Canvas
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${isPerformanceMode ? 'bg-amber-400' : 'bg-primary'}`} />
+                  Circuit Canvas {isPerformanceMode && <Badge variant="outline" className="text-[10px] ml-2 border-amber-500/30 text-amber-400 bg-amber-500/5">PERFORMANCE ACTIVE</Badge>}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground mr-2">Qubits: {numQubits}</span>
+                  <span className="text-sm text-muted-foreground mr-2">Qubits: {numQubits} / 30</span>
 
                   {/* IBM Quantum Button (REMOVED) */}
 
@@ -798,6 +800,9 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                                     </div>
                                   </div>
                                 </div>
+
+                                <div className="h-px w-4 bg-primary/20" />
+
                                 <div
                                   className={`
                                   relative flex items-center justify-center w-10 h-10
@@ -833,9 +838,34 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                                     </div>
                                   </div>
                                 </div>
+
+                                {/* Remove gate button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeGate(gate.id)}
+                                  className="h-6 w-6 p-0 hover:text-destructive transition-colors ml-1"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
                               </div>
                             );
                           })}
+
+                        {/* Rendering Output Bloch Sphere - DISABLED IN PERFORMANCE MODE */}
+                        {!isPerformanceMode && numQubits <= 10 && (
+                          <div className="ml-auto pr-4 hidden md:flex items-center gap-4">
+                            <div className="h-px w-8 bg-primary/20" />
+                            <div className="flex flex-col items-center gap-1 scale-90">
+                              <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter opacity-50">Visual</span>
+                              <div className="w-12 h-12 bg-primary/5 rounded-full border border-primary/20 flex items-center justify-center overflow-hidden shadow-inner">
+                                <Suspense fallback={null}>
+                                  <BlochSphere3D size={60} />
+                                </Suspense>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -856,7 +886,7 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card >
 
 
           {/* Gate Configuration Dialog */}
@@ -1027,8 +1057,8 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                 })()}
               </div>
             </DialogContent>
-          </Dialog>
-        </div>
+          </Dialog >
+        </div >
 
         <div className="col-span-1 lg:col-span-5 mt-6">
           <CircuitAnalysis
@@ -1049,7 +1079,7 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
           isOpen={isIBMDialogOpen}
           onClose={() => setIsIBMDialogOpen(false)}
         />
-      </div>
+      </div >
     </>
   );
 });

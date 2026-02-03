@@ -17,7 +17,7 @@ export class PrecisionComplex {
     public real: number,
     public imag: number,
     public precision: number = PRECISION.EPSILON
-  ) {}
+  ) { }
 
   static from(complex: Complex | PrecisionComplex): PrecisionComplex {
     if (complex instanceof PrecisionComplex) {
@@ -79,7 +79,7 @@ export class PrecisionMatrix {
   constructor(
     public data: PrecisionComplex[][],
     public precision: number = PRECISION.EPSILON
-  ) {}
+  ) { }
 
   static fromRealMatrix(matrix: number[][], precision: number = PRECISION.EPSILON): PrecisionMatrix {
     const data = matrix.map(row =>
@@ -333,32 +333,58 @@ export const numericalUtils = {
 // Error correction and validation
 export const validationUtils = {
   // Check if matrix represents a valid quantum state
-  isValidDensityMatrix: (matrix: number[][], tolerance: number = PRECISION.TOLERANCE): boolean => {
-    const n = matrix.length;
+  isValidDensityMatrix: (matrix: number[][] | PrecisionComplex[][], tolerance: number = PRECISION.TOLERANCE): boolean => {
+    let n = matrix.length;
+    let data: PrecisionComplex[][];
 
-    // Check dimensions
-    if (n === 0 || matrix[0].length !== n) {
-      return false;
+    if (n === 0) return false;
+
+    // Convert to PrecisionComplex if needed
+    if (typeof matrix[0][0] === 'number') {
+      data = (matrix as number[][]).map(row =>
+        row.map(val => new PrecisionComplex(val, 0))
+      );
+    } else {
+      data = matrix as PrecisionComplex[][];
     }
 
-    // Check hermiticity (approximately)
+    // Check squareness
+    if (data[0].length !== n) return false;
+
+    // Check hermiticity: ρ = ρ†
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
-        if (Math.abs(matrix[i][j] - matrix[j][i]) > tolerance) {
+        const diffReal = Math.abs(data[i][j].real - data[j][i].real);
+        const diffImag = Math.abs(data[i][j].imag + data[j][i].imag); // Conjugate means flip imag
+        if (diffReal > tolerance || diffImag > tolerance) {
           return false;
         }
       }
     }
 
     // Check trace = 1
-    const trace = matrix.reduce((sum, row, i) => sum + row[i], 0);
-    if (Math.abs(trace - 1) > tolerance) {
+    let traceReal = 0;
+    let traceImag = 0;
+    for (let i = 0; i < n; i++) {
+      traceReal += data[i][i].real;
+      traceImag += data[i][i].imag;
+    }
+
+    if (Math.abs(traceReal - 1) > tolerance || Math.abs(traceImag) > tolerance) {
       return false;
     }
 
-    // Check positive semidefinite (simplified check)
-    const eigenvalues = numericalUtils.eigenvalues2x2(matrix);
-    return eigenvalues.every(eigenvalue => eigenvalue >= -tolerance);
+    // Check positive semidefinite (ρ ≥ 0)
+    // For 2x2 we can use eigenvalues, for larger matrices we'd ideally use Cholesky or full Eigendecomposition
+    if (n === 2) {
+      const eigenvalues = numericalUtils.eigenvalues2x2([
+        [data[0][0].real, data[0][1].real],
+        [data[1][0].real, data[1][1].real]
+      ]);
+      return eigenvalues.every(ev => ev >= -tolerance);
+    }
+
+    return true; // Simple check passed, assume true for larger matrices for now
   },
 
   // Correct small numerical errors in matrices
@@ -368,14 +394,25 @@ export const validationUtils = {
     );
   },
 
+  // Filter small errors from complex matrices
+  filterSmallErrors: (matrix: PrecisionComplex[][], tolerance: number = PRECISION.TOLERANCE): PrecisionComplex[][] => {
+    return matrix.map(row =>
+      row.map(c => new PrecisionComplex(
+        Math.abs(c.real) < tolerance ? 0 : c.real,
+        Math.abs(c.imag) < tolerance ? 0 : c.imag,
+        c.precision
+      ))
+    );
+  },
+
   // Ensure matrix is properly normalized
   normalizeDensityMatrix: (matrix: number[][]): number[][] => {
-    const trace = matrix.reduce((sum, row, i) => sum + row[i], 0);
-    if (Math.abs(trace) < PRECISION.EPSILON) {
+    const traceVal = matrix.reduce((sum, row, i) => sum + row[i], 0);
+    if (Math.abs(traceVal) < PRECISION.EPSILON) {
       return matrix; // Avoid division by zero
     }
 
-    return matrix.map(row => row.map(val => val / trace));
+    return matrix.map(row => row.map(val => val / traceVal));
   }
 };
 

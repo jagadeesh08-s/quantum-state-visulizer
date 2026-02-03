@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sun, Moon, Monitor, Palette, Zap, Star, Eye, Coffee, Atom, Waves, Link, ArrowRight, Shuffle } from 'lucide-react';
+import { Sun, Moon, Monitor, Sparkles } from 'lucide-react';
 import { useTheme, Theme } from '@/components/general/ThemeProvider';
 
 export const ThemeToggle: React.FC = () => {
@@ -9,51 +9,24 @@ export const ThemeToggle: React.FC = () => {
 
   const getIcon = (themeName: Theme) => {
     switch (themeName) {
-      case 'light':
+      case 'quantum-light':
         return <Sun className="h-4 w-4" />;
-      case 'dark':
+      case 'quantum-dark':
         return <Moon className="h-4 w-4" />;
       case 'system':
         return <Monitor className="h-4 w-4" />;
-      case 'quantum':
-        return <Zap className="h-4 w-4" />;
-      case 'neon':
-        return <Star className="h-4 w-4" />;
-      case 'minimal':
-        return <Eye className="h-4 w-4" />;
       case 'cosmic':
-        return <Palette className="h-4 w-4" />;
-      case 'retro':
-        return <Coffee className="h-4 w-4" />;
-      case 'quantum-light':
-        return <Atom className="h-4 w-4" />;
-      case 'superposition':
-        return <Shuffle className="h-4 w-4" />;
-      case 'entanglement':
-        return <Link className="h-4 w-4" />;
-      case 'tunneling':
-        return <ArrowRight className="h-4 w-4" />;
-      case 'decoherence':
-        return <Waves className="h-4 w-4" />;
+        return <Sparkles className="h-4 w-4" />;
       default:
         return <Monitor className="h-4 w-4" />;
     }
   };
 
   const themes: { value: Theme; label: string }[] = [
-    { value: 'quantum', label: 'Quantum' },
+    { value: 'quantum-dark', label: 'Quantum Dark' },
     { value: 'quantum-light', label: 'Quantum Light' },
-    { value: 'superposition', label: 'Superposition' },
-    { value: 'entanglement', label: 'Entanglement' },
-    { value: 'tunneling', label: 'Tunneling' },
-    { value: 'decoherence', label: 'Decoherence' },
-    { value: 'dark', label: 'Dark' },
-    { value: 'light', label: 'Light' },
     { value: 'system', label: 'System' },
-    { value: 'neon', label: 'Neon' },
-    { value: 'minimal', label: 'Minimal' },
     { value: 'cosmic', label: 'Cosmic' },
-    { value: 'retro', label: 'Retro' }
   ];
 
   return (

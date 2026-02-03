@@ -344,27 +344,13 @@ def calculate_circuit_results(qc: QuantumCircuit) -> List[Dict[str, Any]]:
     return qubit_results
 
 def execute_circuit_locally(circuit_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute circuit using local Qiskit Aer simulator"""
+    """Execute circuit using local simulator (optimized for high qubits)"""
     try:
-        num_qubits = circuit_data['circuit']['numQubits']
-        gates = circuit_data['circuit']['gates']
-        initial_state = circuit_data.get('initialState', 'ket0')
-        custom_state = circuit_data.get('customState', {})
-
-        # Create circuit with initial state
-        qc = create_initial_state(initial_state, custom_state, num_qubits)
-
-        # Apply gates
-        for gate in gates:
-            apply_gate(qc, gate)
-
-        return {
-            'success': True,
-            'method': 'local_simulator',
-            'qubitResults': calculate_circuit_results(qc),
-            'executionTime': 0.001,  # Local execution is very fast
-            'backend': 'local_simulator'
-        }
+        # Import the optimized simulator dynamically to avoid circular imports
+        from quantum_simulator import execute_circuit as execute_circuit_custom
+        
+        # Use our custom optimized simulator
+        return execute_circuit_custom(circuit_data)
 
     except Exception as e:
         return {
@@ -372,9 +358,6 @@ def execute_circuit_locally(circuit_data: Dict[str, Any]) -> Dict[str, Any]:
             'error': str(e),
             'traceback': traceback.format_exc()
         }
-
-        # Transpile circuit for the backend (REMOVED)
-        pass
 
 def validate_circuit_data(circuit_data: Dict[str, Any]) -> None:
     """Validate the structure of circuit data"""
@@ -392,8 +375,9 @@ def validate_circuit_data(circuit_data: Dict[str, Any]) -> None:
     if 'numQubits' not in circuit:
         raise ValueError("Missing 'numQubits' in circuit")
     num_qubits = circuit['numQubits']
-    if not isinstance(num_qubits, int) or num_qubits < 1 or num_qubits > 10:
-        raise ValueError("'numQubits' must be an integer between 1 and 10")
+    # INCREASE QUBLIT LIMIT TO 30
+    if not isinstance(num_qubits, int) or num_qubits < 1 or num_qubits > 30:
+        raise ValueError("'numQubits' must be an integer between 1 and 30")
 
     if 'gates' not in circuit:
         raise ValueError("Missing 'gates' in circuit")

@@ -44,6 +44,8 @@ import CircuitBuilder from '../core/CircuitBuilder';
 import { simulateCircuit } from '@/utils/quantum/quantumSimulation';
 import type { QuantumCircuit } from '@/utils/quantum/quantumSimulation';
 
+const QuantumTeleportation = React.lazy(() => import('@/components/advanced/QuantumTeleportation'));
+
 interface QuantumApplicationsProps {
   onCircuitLoad?: (circuit: QuantumCircuit) => void;
 }
@@ -414,7 +416,7 @@ const QuantumApplications: React.FC<QuantumApplicationsProps> = ({ onCircuitLoad
 
   const exportResults = () => {
     const dataStr = JSON.stringify(savedResults, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
     const exportFileDefaultName = `quantum-apps-results-${Date.now()}.json`;
 
     const linkElement = document.createElement('a');
@@ -569,22 +571,31 @@ const QuantumApplications: React.FC<QuantumApplicationsProps> = ({ onCircuitLoad
       </div>
 
       <Tabs defaultValue="bb84" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-5 h-auto">
           <TabsTrigger value="bb84" className="flex items-center gap-2">
             <Key className="w-4 h-4" />
-            BB84 Protocol
+            <span className="hidden md:inline">BB84</span>
+            <span className="md:hidden">BB84</span>
           </TabsTrigger>
           <TabsTrigger value="e91" className="flex items-center gap-2">
             <Shield className="w-4 h-4" />
-            E91 Protocol
+            <span className="hidden md:inline">E91</span>
+            <span className="md:hidden">E91</span>
           </TabsTrigger>
           <TabsTrigger value="coinflip" className="flex items-center gap-2">
             <Dice6 className="w-4 h-4" />
-            Quantum Coin Flip
+            <span className="hidden md:inline">Coin Flip</span>
+            <span className="md:hidden">Coin Flip</span>
           </TabsTrigger>
           <TabsTrigger value="comparison" className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
-            Protocol Comparison
+            <span className="hidden md:inline">Compare</span>
+            <span className="md:hidden">Compare</span>
+          </TabsTrigger>
+          <TabsTrigger value="teleportation" className="flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            <span className="hidden md:inline">Teleport</span>
+            <span className="md:hidden">Teleport</span>
           </TabsTrigger>
         </TabsList>
 
@@ -609,10 +620,10 @@ const QuantumApplications: React.FC<QuantumApplicationsProps> = ({ onCircuitLoad
                     <p className="text-xs text-muted-foreground">
                       Step {bb84Step}/4: {
                         bb84Step === 0 ? 'Ready to start' :
-                        bb84Step === 1 ? 'Alice sends qubits' :
-                        bb84Step === 2 ? 'Bob measures qubits' :
-                        bb84Step === 3 ? 'Public basis comparison' :
-                        'Privacy amplification complete'
+                          bb84Step === 1 ? 'Alice sends qubits' :
+                            bb84Step === 2 ? 'Bob measures qubits' :
+                              bb84Step === 3 ? 'Public basis comparison' :
+                                'Privacy amplification complete'
                       }
                     </p>
                   </div>
@@ -766,10 +777,10 @@ const QuantumApplications: React.FC<QuantumApplicationsProps> = ({ onCircuitLoad
                     <p className="text-xs text-muted-foreground">
                       Step {e91Step}/4: {
                         e91Step === 0 ? 'Ready to start' :
-                        e91Step === 1 ? 'Creating entangled pairs' :
-                        e91Step === 2 ? 'Choosing measurement bases' :
-                        e91Step === 3 ? 'Performing measurements' :
-                        'Bell inequality verification complete'
+                          e91Step === 1 ? 'Creating entangled pairs' :
+                            e91Step === 2 ? 'Choosing measurement bases' :
+                              e91Step === 3 ? 'Performing measurements' :
+                                'Bell inequality verification complete'
                       }
                     </p>
                   </div>
@@ -1223,6 +1234,12 @@ const QuantumApplications: React.FC<QuantumApplicationsProps> = ({ onCircuitLoad
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="teleportation" className="space-y-6">
+          <React.Suspense fallback={<div className="p-8 text-center">Loading Teleportation Module...</div>}>
+            <QuantumTeleportation />
+          </React.Suspense>
         </TabsContent>
       </Tabs>
     </div>

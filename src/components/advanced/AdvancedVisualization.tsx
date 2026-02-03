@@ -23,7 +23,7 @@ import {
   MonitorSpeaker
 } from 'lucide-react';
 import { toast } from 'sonner';
-import BlochSphere3D from '../core/BlochSphere';
+import BlochSphere3D, { BlochProbabilities } from '../core/BlochSphere';
 import { simulateCircuit } from '@/utils/quantum/quantumSimulation';
 import type { QuantumCircuit, DensityMatrix } from '@/utils/quantum/quantumSimulation';
 import { GPUQuantumVisualizer, QuantumState, EvolutionParameters, EntanglementParameters } from '@/utils/quantum/gpuQuantumVisualizer';
@@ -94,21 +94,17 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
     });
   };
 
-  // Generate sample data for demonstration (memoized for performance)
+  // Generate data from actual results (no more fake samples)
   const sampleProbabilities = useMemo(() => {
     return circuit && results.length > 0
       ? calculateProbabilities(results)
-      : [
-          [0.5, 0.5], // Qubit 0: equal superposition
-          [0.7, 0.3], // Qubit 1: biased state
-          [0.2, 0.8]  // Qubit 2: mostly |1⟩
-        ];
+      : Array(circuit?.numQubits || 1).fill([1, 0]); // Default to |0⟩
   }, [circuit, results]);
 
   const sampleEntanglement = useMemo(() => {
     return circuit && results.length > 0
       ? calculateEntanglement(results)
-      : [0.1, 0.3, 0.6]; // Sample entanglement values
+      : Array(circuit?.numQubits || 1).fill(0); // Default to no entanglement
   }, [circuit, results]);
 
   // Animation loop for circuit evolution
@@ -154,7 +150,7 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
     }
   }, []);
 
-  const qubitCount = useMemo(() => results.length || 3, [results.length]);
+  const qubitCount = useMemo(() => circuit?.numQubits || results.length || 1, [circuit, results.length]);
 
   const render3DBlochSpheres = useCallback(() => {
     if (!vizState.show3D) return null;
@@ -170,13 +166,8 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
       if (result && result.blochVector) {
         vector = result.blochVector;
       } else {
-        // Generate sample vectors for demonstration
-        const angle = currentTime + (i * Math.PI * 2) / qubitCount;
-        vector = {
-          x: Math.sin(angle) * 0.8,
-          y: Math.cos(angle) * 0.8,
-          z: Math.sin(angle * 0.5) * 0.6
-        };
+        // Fallback or placeholder if specific qubit result is missing
+        vector = { x: 0, y: 0, z: 1 };
       }
 
       spheres.push(
@@ -245,6 +236,15 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
                   {results[i]?.entanglement?.toFixed(3) || '0.000'}
                 </span>
               </div>
+            </div>
+
+            {/* Measurement Probabilities */}
+            <div className="mt-4 pt-4 border-t border-slate-700/50">
+              <BlochProbabilities
+                vector={vector}
+                isDark={true}
+                className="bg-slate-700/30 border-slate-600/20"
+              />
             </div>
           </div>
         </motion.div>
@@ -406,9 +406,8 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ delay: (i * 3 + j) * 0.05 }}
-                        className={`aspect-square rounded border flex items-center justify-center text-xs font-medium ${
-                          i === j ? 'border-purple-400 bg-purple-500/20 text-purple-200' : 'border-slate-600 bg-slate-700/50 text-slate-300'
-                        }`}
+                        className={`aspect-square rounded border flex items-center justify-center text-xs font-medium ${i === j ? 'border-purple-400 bg-purple-500/20 text-purple-200' : 'border-slate-600 bg-slate-700/50 text-slate-300'
+                          }`}
                       >
                         {(correlation * 100).toFixed(0)}
                       </motion.div>
@@ -695,11 +694,10 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
                   <div className="mt-6 p-4 bg-slate-800/30 rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-300 text-sm">GPU Acceleration Status</span>
-                      <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        vizState.enableGPU
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      }`}>
+                      <div className={`px-3 py-1 rounded-full text-xs font-medium ${vizState.enableGPU
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        }`}>
                         {vizState.enableGPU ? 'Enabled' : 'Disabled'}
                       </div>
                     </div>
