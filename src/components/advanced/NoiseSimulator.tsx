@@ -197,7 +197,7 @@ export const NoiseSimulator: React.FC = () => {
         }
       };
 
-      const response = await fetch('http://localhost:8082/api/quantum/noise-simulation', {
+      const response = await fetch('http://localhost:3005/api/quantum/noise-simulation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

@@ -22,6 +22,12 @@ interface BlochSphereProps {
   highlightedAxis?: 'x' | 'y' | 'z' | null;
 }
 
+interface BlochSphereSceneProps extends BlochSphereProps {
+  position?: [number, number, number];
+  label?: string;
+  isDark?: boolean;
+}
+
 // --- Internal Components ---
 
 const QuantumStateMarker = React.memo<{ vector: BlochVector; isAtDefault: boolean }>(({ vector }) => {
@@ -127,11 +133,11 @@ const CoordinateAxes: React.FC<{ highlightedAxis?: 'x' | 'y' | 'z' | null; theme
   return (
     <group>
       {/* X-axis (Red) */}
-      <AxisLine start={[-1.4, 0, 0]} end={[1.4, 0, 0]} color={axisColors.x} label="X" labelPos={[1.6, 0, 0]} />
+      <AxisLine start={[-1.4, 0, 0] as [number, number, number]} end={[1.4, 0, 0] as [number, number, number]} color={axisColors.x} label="X" labelPos={[1.6, 0, 0]} />
       {/* Y-axis (Green) */}
-      <AxisLine start={[0, -1.4, 0]} end={[0, 1.4, 0]} color={axisColors.y} label="Y" labelPos={[0, 1.6, 0]} />
+      <AxisLine start={[0, -1.4, 0] as [number, number, number]} end={[0, 1.4, 0] as [number, number, number]} color={axisColors.y} label="Y" labelPos={[0, 1.6, 0]} />
       {/* Z-axis (Blue) */}
-      <AxisLine start={[0, 0, -1.4]} end={[0, 0, 1.4]} color={axisColors.z} label="Z" labelPos={[0, 0, 1.6]} />
+      <AxisLine start={[0, 0, -1.4] as [number, number, number]} end={[0, 0, 1.4] as [number, number, number]} color={axisColors.z} label="Z" labelPos={[0, 0, 1.6]} />
 
       {/* Basis State Labels */}
       <Text position={[0.2, 0, 1.15]} fontSize={0.12} color={axisColors.z} fontWeight="bold" renderOrder={1000}>|0⟩</Text>
@@ -146,6 +152,111 @@ const CoordinateAxes: React.FC<{ highlightedAxis?: 'x' | 'y' | 'z' | null; theme
     </group>
   );
 };
+
+export const BlochSphereScene: React.FC<BlochSphereSceneProps> = React.memo(({
+  vector = { x: 0, y: 0, z: 1 },
+  position = [0, 0, 0] as [number, number, number],
+  label,
+  isDark = true,
+  showAxes = true,
+  highlightedAxis = null
+}) => {
+  // Theme-derived Colors
+  const colors = useMemo(() => ({
+    background: isDark ? '#040b19' : '#ffffff',
+    grid: isDark ? '#ffffff' : '#000000',
+    sphereColor: isDark ? '#001133' : '#e0f2fe',
+    sphereTransmission: 0.1,
+    lightIntensity: isDark ? 2.5 : 1.5,
+  }), [isDark]);
+
+  const axisColors = {
+    x: '#ff1a1a',
+    y: '#00cc44',
+    z: '#2e8fff'
+  };
+
+  // Vector Processing
+  const displayVector = useMemo(() => {
+    const rawLen = Math.sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2);
+    if (rawLen < 0.001) return { x: 0, y: 0, z: 0 };
+    const scale = rawLen > 1 ? 1 / rawLen : 1;
+    return { x: vector.x * scale, y: vector.y * scale, z: vector.z * scale };
+  }, [vector.x, vector.y, vector.z]);
+
+  const isAtDefault = useMemo(() =>
+    Math.abs(vector.x) < 0.01 && Math.abs(vector.y) < 0.01 && Math.abs(vector.z - 1) < 0.01,
+    [vector.x, vector.y, vector.z]
+  );
+
+  return (
+    <group position={position}>
+      {showAxes && (
+        <group>
+          <CoordinateAxes highlightedAxis={highlightedAxis} themeColors={colors} />
+        </group>
+      )}
+
+      {/* --- THE SPHERE --- */}
+      <group>
+        {/* 1. Wireframe */}
+        <mesh>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshBasicMaterial
+            color={colors.grid}
+            wireframe
+            transparent
+            opacity={0.15}
+          />
+        </mesh>
+
+        {/* 2. Glass Surface Body */}
+        <mesh>
+          <sphereGeometry args={[0.99, 32, 32]} /> {/* Reduced segments for performance in grid */}
+          <meshPhongMaterial
+            color="#000000"
+            emissive="#001a33"
+            emissiveIntensity={0.2}
+            specular="#111111"
+            shininess={100}
+            transparent
+            opacity={0.2}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+
+        {/* Equator Line */}
+        <Line
+          points={new Array(33).fill(0).map((_, i) => { // Reduced points
+            const angle = (i / 32) * Math.PI * 2;
+            return [Math.cos(angle), Math.sin(angle), 0] as [number, number, number];
+          })}
+          color={colors.grid}
+          lineWidth={1.5}
+          transparent
+          opacity={0.5}
+        />
+      </group>
+
+      {/* State Marker & Vector */}
+      <QuantumStateMarker vector={displayVector} isAtDefault={isAtDefault} />
+
+      {/* Label */}
+      {label && (
+        <Text
+          position={[0, -1.3, 0]}
+          fontSize={0.2}
+          color={isDark ? "#cbd5e1" : "#475569"}
+          anchorX="center"
+          anchorY="top"
+        >
+          {label}
+        </Text>
+      )}
+    </group>
+  );
+});
 
 // Main Bloch Sphere component - Memoized for performance
 const BlochSphere3D: React.FC<BlochSphereProps> = React.memo(({
@@ -162,44 +273,30 @@ const BlochSphere3D: React.FC<BlochSphereProps> = React.memo(({
   // Determine if we are in a dark theme or light theme
   const isDark = theme === 'quantum-dark' || theme === 'cosmic' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  // Theme-derived Colors
-  // Theme-derived Colors (Enhanced for Visibility)
-  // Theme-derived Colors (Enhanced for Visibility)
+  // Theme-derived Colors for container
   const colors = {
-    background: isDark ? '#040b19' : '#ffffff',   // Dark Navy vs White
-    grid: isDark ? '#ffffff' : '#000000',         // White Grid (Dark Mode) vs Black Grid (Light Mode)
-    sphereColor: isDark ? '#001133' : '#e0f2fe',  // Dark Blue vs Light Sky
-    sphereTransmission: 0.1,
+    background: isDark ? '#040b19' : '#ffffff',
     lightIntensity: isDark ? 2.5 : 1.5,
   };
 
-  // Vector Processing - Optimized with useMemo
+  // Calculate annotation for overlay
   const displayVector = useMemo(() => {
     const rawLen = Math.sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2);
     if (rawLen < 0.001) return { x: 0, y: 0, z: 0 };
-    // Clamp
     const scale = rawLen > 1 ? 1 / rawLen : 1;
     return { x: vector.x * scale, y: vector.y * scale, z: vector.z * scale };
   }, [vector.x, vector.y, vector.z]);
 
-  const isAtDefault = useMemo(() =>
-    Math.abs(vector.x) < 0.01 && Math.abs(vector.y) < 0.01 && Math.abs(vector.z - 1) < 0.01,
-    [vector.x, vector.y, vector.z]
-  );
-
-  // Calculate coefficients for annotation |ψ⟩ = α|0⟩ + β|1⟩ - Memoized
   const stateAnnotation = useMemo(() => {
     const theta = Math.acos(Math.max(-1, Math.min(1, displayVector.z)));
     const phi = Math.atan2(displayVector.y, displayVector.x);
-
     const alphaVal = Math.cos(theta / 2);
     const betaMag = Math.sin(theta / 2);
     const alphaStr = alphaVal.toFixed(2);
     const betaStr = betaMag.toFixed(2);
     const phiDeg = (phi * 180 / Math.PI).toFixed(0);
-
     return { alphaStr, betaStr, phiDeg };
-  }, [displayVector.x, displayVector.y, displayVector.z]);
+  }, [displayVector]);
 
   return (
     <div
@@ -221,64 +318,20 @@ const BlochSphere3D: React.FC<BlochSphereProps> = React.memo(({
           {/* Dynamic Lighting */}
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} intensity={colors.lightIntensity} color="#ffffff" />
-          <pointLight position={[-8, 5, -5]} intensity={0.8} color="#a5f3fc" /> {/* Subtle Cyan fill */}
-          <pointLight position={[0, -8, 0]} intensity={0.5} color="#e879f9" /> {/* Subtle Purple fill */}
+          <pointLight position={[-8, 5, -5]} intensity={0.8} color="#a5f3fc" />
+          <pointLight position={[0, -8, 0]} intensity={0.5} color="#e879f9" />
 
-          {showAxes && (
-            <group>
-              <CoordinateAxes highlightedAxis={highlightedAxis} themeColors={colors} />
-            </group>
-          )}
-
-          {/* --- THE SPHERE --- */}
-          <group>
-            {/* 1. Wireframe - Cyan */}
-            <mesh>
-              <sphereGeometry args={[1, 32, 32]} />
-              <meshBasicMaterial
-                color={colors.grid}
-                wireframe
-                transparent
-                opacity={0.15}
-              />
-            </mesh>
-
-            {/* 2. Glass Surface Body (Transparent Dark) */}
-            <mesh>
-              <sphereGeometry args={[0.99, 64, 64]} />
-              <meshPhongMaterial
-                color="#000000"
-                emissive="#001a33"
-                emissiveIntensity={0.2}
-                specular="#111111"
-                shininess={100}
-                transparent
-                opacity={0.2}
-                depthWrite={false}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
-
-            {/* Equator Line */}
-            <Line
-              points={new Array(65).fill(0).map((_, i) => {
-                const angle = (i / 64) * Math.PI * 2;
-                return [Math.cos(angle), Math.sin(angle), 0] as [number, number, number];
-              })}
-              color={colors.grid}
-              lineWidth={1.5}
-              transparent
-              opacity={0.5}
-            />
-          </group>
-
-          {/* State Marker & Vector */}
-          <QuantumStateMarker vector={displayVector} isAtDefault={isAtDefault} />
+          <BlochSphereScene
+            vector={vector}
+            isDark={isDark}
+            showAxes={showAxes}
+            highlightedAxis={highlightedAxis}
+          />
 
           {interactive && <OrbitControls enablePan={false} maxDistance={8} minDistance={1.5} autoRotate autoRotateSpeed={2} />}
         </Canvas>
 
-        {/* Measurement Probabilities Overlay - Re-added as requested */}
+        {/* Measurement Probabilities Overlay */}
         <div className={`absolute bottom-4 left-4 p-3 rounded-lg backdrop-blur-md border ${isDark ? 'bg-black/60 border-white/10' : 'bg-white/80 border-black/5'} shadow-lg transition-all duration-300 pointer-events-none select-none z-10`}>
           <div className="space-y-2">
             <div className="flex items-center gap-2">

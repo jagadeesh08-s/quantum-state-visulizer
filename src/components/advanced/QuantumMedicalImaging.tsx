@@ -422,19 +422,22 @@ const QuantumMedicalImaging: React.FC = () => {
                         id: `MOCK-${1000 + i}`,
                         patientId: `P-${202400 + i}`,
                         age: 20 + Math.floor(Math.random() * 60),
-                        gender: Math.random() > 0.5 ? 'Male' : 'Female',
+                        gender: Math.random() > 0.5 ? 'M' : 'F',
                         diagnosis: Math.random() > 0.8 ? 'Fracture Detected' : 'Normal',
                         confidence: 0.85 + Math.random() * 0.14,
-                        timestamp: new Date().toISOString(),
+                        scanDate: new Date().toISOString(),
                         status: 'Training Data',
                         datasetOrigin: 'Synthetic_V1',
-                        scanType: 'MRI_Sequence'
+                        scanType: 'MRI_Sequence',
+                        region: 'Brain'
                     }));
                     setDataset(mockData);
                     setTrainingMetrics({
                         accuracy: 0.94,
                         loss: 0.04,
-                        isTrained: true // Force "Trained" status
+                        isTrained: true, // Force "Trained" status
+                        epochs: 100,
+                        isTraining: false
                     });
                 }
 

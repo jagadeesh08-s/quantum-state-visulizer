@@ -240,7 +240,7 @@ async def health_check():
     """Enhanced health check with comprehensive dependency verification"""
     try:
         # Get basic health from monitoring module
-        basic_health = await get_health()
+        basic_health = await metrics_collector.get_health_status()
 
         # Perform additional comprehensive checks
         detailed_checks = perform_health_checks()

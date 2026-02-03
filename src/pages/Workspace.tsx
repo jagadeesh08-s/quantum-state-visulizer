@@ -594,7 +594,6 @@ qc = QuantumCircuit(${circuit.numQubits})
   };
 
   return (
-
     <AppLayout>
       <Header />
 
@@ -757,7 +756,6 @@ qc = QuantumCircuit(${circuit.numQubits})
 
                   {/* Circuit Builder */}
                   <TabsContent value="circuit" className="space-y-4">
-
                     <div className={`grid grid-cols-1 xl:grid-cols-12 ${layout.containerClass}`}>
                       {/* Left Column - Circuit Canvas */}
                       <div className={`${layout.circuitBuilderColSpan} space-y-4 ${layout.orderReversed ? 'xl:order-2' : ''}`}>
@@ -890,541 +888,530 @@ qc = QuantumCircuit(${circuit.numQubits})
                           Reset
                         </Button>
                       </div>
-                    </div>
-                    {/* Right Column - Quantum State Analysis */}
-                    <div className={`${layout.analysisColSpan} space-y-6 ${layout.orderReversed ? 'xl:order-1' : ''}`}>
-                      {/* Enhanced Simulation Results Panel with Glassmorphism */}
-                      {(simulationResult || ibmSimulationResult) && (
-                        <div className="border border-border/40 rounded-2xl overflow-hidden relative shadow-lg bg-card/40 backdrop-blur-md">
-                          {/* Glass shine effect */}
-                          <div className="absolute inset-0 backdrop-blur-md bg-transparent pointer-events-none" />
-                          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
-                          <div className="relative p-4 border-b border-border/10">
-                            <div className="text-sm font-semibold flex items-center gap-3 text-foreground">
-                              <div className="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.6)]" />
-                              Quantum Simulation Results
-                              {(simulationResult && ibmSimulationResult) && (
-                                <Badge variant="outline" className="ml-auto text-xs border-primary/20 bg-primary/5 backdrop-blur-sm shadow-sm">
-                                  Comparison Mode
-                                </Badge>
-                              )}
+                      {/* Right Column - Quantum State Analysis */}
+                      <div className={`${layout.analysisColSpan} space-y-6 ${layout.orderReversed ? 'xl:order-1' : ''}`}>
+                        {/* Enhanced Simulation Results Panel with Glassmorphism */}
+                        {(simulationResult || ibmSimulationResult) && (
+                          <div className="border border-border/40 rounded-2xl overflow-hidden relative shadow-lg bg-card/40 backdrop-blur-md">
+                            {/* Glass shine effect */}
+                            <div className="absolute inset-0 backdrop-blur-md bg-transparent pointer-events-none" />
+                            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+                            <div className="relative p-4 border-b border-border/10">
+                              <div className="text-sm font-semibold flex items-center gap-3 text-foreground">
+                                <div className="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.6)]" />
+                                Quantum Simulation Results
+                                {(simulationResult && ibmSimulationResult) && (
+                                  <Badge variant="outline" className="ml-auto text-xs border-primary/20 bg-primary/5 backdrop-blur-sm shadow-sm">
+                                    Comparison Mode
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <div className="p-4 relative">
-                            {(simulationResult?.error || ibmSimulationResult?.error) ? (
-                              <Alert className="mb-4 border-red-500/20 bg-red-500/10">
-                                <AlertCircle className="h-4 w-4 text-red-500" />
-                                <AlertDescription className="text-red-300">
-                                  {simulationResult?.error || ibmSimulationResult?.error}
-                                </AlertDescription>
-                              </Alert>
-                            ) : (
-                              <div className="space-y-4">
-                                {/* Overall Circuit Information */}
-                                <div className="grid grid-cols-3 gap-4">
-                                  <div className="bg-muted/50 rounded-lg p-3">
-                                    <div className="text-xs text-muted-foreground mb-2">Circuit Size</div>
-                                    <div className="text-lg font-semibold text-foreground">{currentCircuit?.numQubits} qubits</div>
-                                  </div>
-                                  <div className="bg-muted/50 rounded-lg p-3">
-                                    <div className="text-xs text-muted-foreground mb-2">Total Gates</div>
-                                    <div className="text-lg font-semibold text-foreground">{currentCircuit?.gates?.length || 0}</div>
-                                  </div>
-                                  <div className="bg-muted/50 rounded-lg p-3">
-                                    <div className="text-xs text-muted-foreground mb-2">Simulations</div>
-                                    <div className="text-sm font-semibold text-foreground">
-                                      {simulationResult ? 'Local' : ''}{simulationResult && ibmSimulationResult ? ' + ' : ''}{ibmSimulationResult ? 'IBM' : ''}
+                            <div className="p-4 relative">
+                              {(simulationResult?.error || ibmSimulationResult?.error) ? (
+                                <Alert className="mb-4 border-red-500/20 bg-red-500/10">
+                                  <AlertCircle className="h-4 w-4 text-red-500" />
+                                  <AlertDescription className="text-red-300">
+                                    {simulationResult?.error || ibmSimulationResult?.error}
+                                  </AlertDescription>
+                                </Alert>
+                              ) : (
+                                <div className="space-y-4">
+                                  {/* Overall Circuit Information */}
+                                  <div className="grid grid-cols-3 gap-4">
+                                    <div className="bg-muted/50 rounded-lg p-3">
+                                      <div className="text-xs text-muted-foreground mb-2">Circuit Size</div>
+                                      <div className="text-lg font-semibold text-foreground">{currentCircuit?.numQubits} qubits</div>
+                                    </div>
+                                    <div className="bg-muted/50 rounded-lg p-3">
+                                      <div className="text-xs text-muted-foreground mb-2">Total Gates</div>
+                                      <div className="text-lg font-semibold text-foreground">{currentCircuit?.gates?.length || 0}</div>
+                                    </div>
+                                    <div className="bg-muted/50 rounded-lg p-3">
+                                      <div className="text-xs text-muted-foreground mb-2">Simulations</div>
+                                      <div className="text-sm font-semibold text-foreground">
+                                        {simulationResult ? 'Local' : ''}{simulationResult && ibmSimulationResult ? ' + ' : ''}{ibmSimulationResult ? 'IBM' : ''}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
 
-                                {/* Results Comparison */}
-                                {(simulationResult || ibmSimulationResult) && (
-                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {/* Local Simulation Results */}
-                                    {simulationResult && (
-                                      <div className="border border-cyan-500/30 rounded-lg p-4 bg-cyan-500/5">
-                                        <div className="flex items-center gap-2 mb-3">
-                                          <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
-                                          <h4 className="text-sm font-semibold text-cyan-300">Local Simulator</h4>
-                                          <Badge variant="outline" className="text-xs ml-auto">Exact</Badge>
-                                        </div>
-                                        <div className="space-y-2 text-xs">
-                                          <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Method:</span>
-                                            <span className="font-mono">State Vector</span>
+                                  {/* Results Comparison */}
+                                  {(simulationResult || ibmSimulationResult) && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                      {/* Local Simulation Results */}
+                                      {simulationResult && (
+                                        <div className="border border-cyan-500/30 rounded-lg p-4 bg-cyan-500/5">
+                                          <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
+                                            <h4 className="text-sm font-semibold text-cyan-300">Local Simulator</h4>
+                                            <Badge variant="outline" className="text-xs ml-auto">Exact</Badge>
                                           </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Precision:</span>
-                                            <span className="font-mono">Floating Point</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Time:</span>
-                                            <span className="font-mono">Instant</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* IBM Quantum Results */}
-                                    {ibmSimulationResult && (
-                                      <div className="border border-purple-500/30 rounded-lg p-4 bg-purple-500/5">
-                                        <div className="flex items-center gap-2 mb-3">
-                                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                          <h4 className="text-sm font-semibold text-purple-300">IBM Quantum</h4>
-                                          <Badge variant="outline" className="text-xs ml-auto">{ibmSimulationResult.backendId}</Badge>
-                                        </div>
-                                        <div className="space-y-2 text-xs">
-                                          <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Method:</span>
-                                            <span className="font-mono">Shot-based</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Shots:</span>
-                                            <span className="font-mono">{ibmSimulationResult.shots.toLocaleString()}</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Job ID:</span>
-                                            <span className="font-mono text-xs">{ibmSimulationResult.jobId.slice(-8)}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Gate Descriptions - Show BEFORE Bloch Spheres */}
-                                {currentCircuit && currentCircuit.gates.length > 0 && (
-                                  <div className="border border-slate-800 rounded-lg bg-slate-900/30 p-4">
-                                    <h4 className="text-sm font-semibold mb-3">
-                                      Gate Operations Applied
-                                    </h4>
-                                    <div className="space-y-6">
-                                      {currentCircuit.gates.map((gate, index) => {
-                                        const gateStatesInfo = gateStates[`gate_${index}`];
-                                        return (
-                                          <div key={index} className="border-l-2 border-primary/30 pl-6 space-y-2">
-                                            <div className="flex items-center gap-3">
-                                              <Badge variant="outline" className="text-xs font-mono border-primary/30 text-primary px-3 py-1">
-                                                {gate.name}
-                                              </Badge>
-                                              <span className="text-xs text-muted-foreground">
-                                                Qubit{gate.qubits.length > 1 ? 's' : ''} {gate.qubits.join(', ')}
-                                              </span>
+                                          <div className="space-y-2 text-xs">
+                                            <div className="flex justify-between">
+                                              <span className="text-muted-foreground">Method:</span>
+                                              <span className="font-mono">State Vector</span>
                                             </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-muted-foreground">Precision:</span>
+                                              <span className="font-mono">Floating Point</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-muted-foreground">Time:</span>
+                                              <span className="font-mono">Instant</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
 
-                                            {/* Gate Description */}
-                                            <div className="text-xs text-muted-foreground space-y-2">
-                                              <div className="font-medium text-foreground">
-                                                {getGateDescription(gate.name)}
+                                      {/* IBM Quantum Results */}
+                                      {ibmSimulationResult && (
+                                        <div className="border border-purple-500/30 rounded-lg p-4 bg-purple-500/5">
+                                          <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                            <h4 className="text-sm font-semibold text-purple-300">IBM Quantum</h4>
+                                            <Badge variant="outline" className="text-xs ml-auto">{ibmSimulationResult.backendId}</Badge>
+                                          </div>
+                                          <div className="space-y-2 text-xs">
+                                            <div className="flex justify-between">
+                                              <span className="text-muted-foreground">Method:</span>
+                                              <span className="font-mono">Shot-based</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-muted-foreground">Shots:</span>
+                                              <span className="font-mono">{ibmSimulationResult.shots.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-muted-foreground">Job ID:</span>
+                                              <span className="font-mono text-xs">{ibmSimulationResult.jobId.slice(-8)}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Gate Descriptions - Show BEFORE Bloch Spheres */}
+                                  {currentCircuit && currentCircuit.gates.length > 0 && (
+                                    <div className="border border-slate-800 rounded-lg bg-slate-900/30 p-4">
+                                      <h4 className="text-sm font-semibold mb-3">
+                                        Gate Operations Applied
+                                      </h4>
+                                      <div className="space-y-6">
+                                        {currentCircuit.gates.map((gate, index) => {
+                                          const gateStatesInfo = gateStates[`gate_${index}`];
+                                          return (
+                                            <div key={index} className="border-l-2 border-primary/30 pl-6 space-y-2">
+                                              <div className="flex items-center gap-3">
+                                                <Badge variant="outline" className="text-xs font-mono border-primary/30 text-primary px-3 py-1">
+                                                  {gate.name}
+                                                </Badge>
+                                                <span className="text-xs text-muted-foreground">
+                                                  Qubit{gate.qubits.length > 1 ? 's' : ''} {gate.qubits.join(', ')}
+                                                </span>
                                               </div>
-                                              {gateStatesInfo && (
-                                                <div className="space-y-2">
-                                                  <div className="flex items-center gap-3">
-                                                    <span className="text-muted-foreground font-medium text-cyan-400">Output:</span>
-                                                    <Badge variant="secondary" className="text-xs font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-2 py-1">
-                                                      {typeof gateStatesInfo.output === 'string' ? gateStatesInfo.output : 'Complex State'}
-                                                    </Badge>
-                                                  </div>
-                                                  <div className="flex items-center gap-3 opacity-80">
-                                                    <span className="text-muted-foreground">Input:</span>
-                                                    <Badge variant="outline" className="text-xs font-mono border-border text-muted-foreground px-2 py-1">
-                                                      {typeof gateStatesInfo.input === 'string' ? gateStatesInfo.input : 'Complex State'}
-                                                    </Badge>
-                                                  </div>
+
+                                              {/* Gate Description */}
+                                              <div className="text-xs text-muted-foreground space-y-2">
+                                                <div className="font-medium text-foreground">
+                                                  {getGateDescription(gate.name)}
                                                 </div>
-                                              )}
+                                                {gateStatesInfo && (
+                                                  <div className="space-y-2">
+                                                    <div className="flex items-center gap-3">
+                                                      <span className="text-muted-foreground font-medium text-cyan-400">Output:</span>
+                                                      <Badge variant="secondary" className="text-xs font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-2 py-1">
+                                                        {typeof gateStatesInfo.output === 'string' ? gateStatesInfo.output : 'Complex State'}
+                                                      </Badge>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 opacity-80">
+                                                      <span className="text-muted-foreground">Input:</span>
+                                                      <Badge variant="outline" className="text-xs font-mono border-border text-muted-foreground px-2 py-1">
+                                                        {typeof gateStatesInfo.input === 'string' ? gateStatesInfo.input : 'Complex State'}
+                                                      </Badge>
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
                                             </div>
-                                          </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Bloch Spheres for Active Qubits Only */}
+                                  {reducedStates.length > 0 && (() => {
+                                    // Filter to show only qubits that have gates applied to them
+                                    const activeQubits = reducedStates
+                                      .map((state, index) => ({ state, index }))
+                                      .filter(({ index }) => {
+                                        return currentCircuit?.gates.some(gate =>
+                                          gate.qubits.includes(index)
                                         );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
+                                      });
 
-                                {/* Bloch Spheres for Active Qubits Only */}
-                                {reducedStates.length > 0 && (() => {
-                                  // Filter to show only qubits that have gates applied to them
-                                  const activeQubits = reducedStates
-                                    .map((state, index) => ({ state, index }))
-                                    .filter(({ index }) => {
-                                      return currentCircuit?.gates.some(gate =>
-                                        gate.qubits.includes(index)
-                                      );
-                                    });
+                                    // If no qubits have gates, show all qubits (fallback for initial state visualization)
+                                    const qubitsToShow = activeQubits.length > 0 ? activeQubits : reducedStates.map((state, index) => ({ state, index }));
 
-                                  // If no qubits have gates, show all qubits (fallback for initial state visualization)
-                                  const qubitsToShow = activeQubits.length > 0 ? activeQubits : reducedStates.map((state, index) => ({ state, index }));
+                                    return qubitsToShow.length > 0 ? (
+                                      <div className="py-2">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-200">
+                                            Bloch Sphere Representations
+                                            <span className="text-xs text-gray-400 ml-2">
+                                              ({qubitsToShow.length} qubit{qubitsToShow.length !== 1 ? 's' : ''})
+                                            </span>
+                                          </h4>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setIsBlochModalOpen(true)}
+                                            className="bg-cyan-500/20 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/30 hover:border-cyan-400"
+                                          >
+                                            <Earth className="w-4 h-4 mr-2" />
+                                            View All
+                                          </Button>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-6">
+                                          {qubitsToShow.map(({ state, index }) => (
+                                            <Card key={index} className="border border-white/20 bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] rounded-2xl hover:shadow-[0_8px_40px_0_rgba(6,182,212,0.3)] transition-all duration-300 relative overflow-hidden">
+                                              {/* Glass reflection overlay */}
+                                              <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
 
-                                  return qubitsToShow.length > 0 ? (
-                                    <div className="py-2">
-                                      <div className="flex items-center justify-between mb-4">
-                                        <h4 className="text-sm font-semibold text-gray-200">
-                                          Bloch Sphere Representations
-                                          <span className="text-xs text-gray-400 ml-2">
-                                            ({qubitsToShow.length} qubit{qubitsToShow.length !== 1 ? 's' : ''})
-                                          </span>
-                                        </h4>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => setIsBlochModalOpen(true)}
-                                          className="bg-cyan-500/20 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/30 hover:border-cyan-400"
-                                        >
-                                          <Earth className="w-4 h-4 mr-2" />
-                                          View All
-                                        </Button>
-                                      </div>
-                                      <div className="grid grid-cols-1 gap-6">
-                                        {qubitsToShow.map(({ state, index }) => (
-                                          <Card key={index} className="border border-white/20 bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] rounded-2xl hover:shadow-[0_8px_40px_0_rgba(6,182,212,0.3)] transition-all duration-300 relative overflow-hidden">
-                                            {/* Glass reflection overlay */}
-                                            <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
-
-                                            <CardHeader className="pb-3 relative">
-                                              <CardTitle className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                                                <div className="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
-                                                Qubit {index}
-                                              </CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="p-4 space-y-4 relative">
-                                              <div className="h-80 w-full bg-gray-900/50 border border-gray-700/30 rounded-lg p-3 flex items-center justify-center relative overflow-hidden">
-                                                {/* Safety check for valid Bloch vector */}
-                                                {state.blochVector && !isNaN(state.blochVector.x) ? (
-                                                  <BlochSphere3D
-                                                    vector={mapVector(state.blochVector)}
-                                                    size={400}
-                                                    className="w-full h-full"
-                                                  />
-                                                ) : (
-                                                  <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
-                                                    Invalid State Vector
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <div className="text-xs space-y-2 pt-2 border-t border-white/5">
-                                                <div className="flex justify-between items-center">
-                                                  <span className="text-gray-400">Purity:</span>
-                                                  <span className="font-mono font-semibold text-gray-200">{state.purity?.toFixed(3) || '1.000'}</span>
+                                              <CardHeader className="pb-3 relative">
+                                                <CardTitle className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                                                  <div className="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+                                                  Qubit {index}
+                                                </CardTitle>
+                                              </CardHeader>
+                                              <CardContent className="p-4 space-y-4 relative">
+                                                <div className="h-80 w-full bg-gray-900/50 border border-gray-700/30 rounded-lg p-3 flex items-center justify-center relative overflow-hidden">
+                                                  {/* Safety check for valid Bloch vector */}
+                                                  {state.blochVector && !isNaN(state.blochVector.x) ? (
+                                                    <BlochSphere3D
+                                                      vector={mapVector(state.blochVector)}
+                                                      size={400}
+                                                      className="w-full h-full"
+                                                    />
+                                                  ) : (
+                                                    <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
+                                                      Invalid State Vector
+                                                    </div>
+                                                  )}
                                                 </div>
-                                                <div className="flex justify-between items-center">
-                                                  <span className="text-gray-400">Superposition:</span>
-                                                  <span className="font-mono font-semibold text-gray-200">{state.superposition?.toFixed(3) || '0.000'}</span>
-                                                </div>
-                                                {currentCircuit && currentCircuit.numQubits > 1 && (
+                                                <div className="text-xs space-y-2 pt-2 border-t border-white/5">
                                                   <div className="flex justify-between items-center">
-                                                    <span className="text-gray-400">Entanglement:</span>
-                                                    <span className="font-mono font-semibold text-gray-200">{state.entanglement?.toFixed(3) || '0.000'}</span>
+                                                    <span className="text-gray-400">Purity:</span>
+                                                    <span className="font-mono font-semibold text-gray-200">{state.purity?.toFixed(3) || '1.000'}</span>
                                                   </div>
-                                                )}
-                                              </div>
-                                            </CardContent>
-                                          </Card>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="text-center text-gray-400 text-sm py-4">
-                                      No qubits to display.
-                                    </div>
-                                  );
-                                })()}
-
-                                {/* Detailed Quantum Parameters */}
-                                <div className="grid grid-cols-1 gap-4 pt-4">
-                                  {/* Quantum State Properties */}
-                                  <Card className="border-border/50">
-                                    <CardHeader>
-                                      <CardTitle className="text-sm text-gray-200">Quantum State Properties</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="p-4">
-                                      <div className="space-y-4">
-                                        {(() => {
-                                          const activeQubits = reducedStates
-                                            .map((state, index) => ({ state, index }))
-                                            .filter(({ index }) => {
-                                              return currentCircuit?.gates.some(gate =>
-                                                gate.qubits.includes(index)
-                                              );
-                                            });
-
-                                          const qubitsToShow = activeQubits.length > 0 ? activeQubits : reducedStates.map((state, index) => ({ state, index }));
-
-                                          return qubitsToShow.map(({ state, index }) => (
-                                            <div key={index} className="border-b border-gray-700/20 pb-4 last:border-b-0">
-                                              <div className="text-xs font-semibold mb-3 text-gray-200">Qubit {index}</div>
-                                              <div className="grid grid-cols-2 gap-3 text-xs">
-                                                <div>
-                                                  <span className="text-gray-400">Bloch Vector:</span>
-                                                  <div className="font-mono text-gray-300 mt-1">
-                                                    x: {state.blochVector.x.toFixed(3)}<br />
-                                                    y: {state.blochVector.y.toFixed(3)}<br />
-                                                    z: {state.blochVector.z.toFixed(3)}
+                                                  <div className="flex justify-between items-center">
+                                                    <span className="text-gray-400">Superposition:</span>
+                                                    <span className="font-mono font-semibold text-gray-200">{state.superposition?.toFixed(3) || '0.000'}</span>
                                                   </div>
+                                                  {currentCircuit && currentCircuit.numQubits > 1 && (
+                                                    <div className="flex justify-between items-center">
+                                                      <span className="text-gray-400">Entanglement:</span>
+                                                      <span className="font-mono font-semibold text-gray-200">{state.entanglement?.toFixed(3) || '0.000'}</span>
+                                                    </div>
+                                                  )}
                                                 </div>
-                                                <div>
-                                                  <span className="text-gray-400">Properties:</span>
-                                                  <div className="font-mono text-gray-300 mt-1">
-                                                    Purity: {state.purity?.toFixed(3) || '1.000'}<br />
-                                                    Radius: {state.reducedRadius?.toFixed(3) || '1.000'}<br />
-                                                    {state.isEntangled !== undefined && (
-                                                      <>Entangled: {state.isEntangled ? 'Yes' : 'No'}</>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          ));
-                                        })()}
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                </div>
-
-                                {/* Technical Details (Collapsible) */}
-                                <details className="group pt-2">
-                                  <summary className="cursor-pointer text-sm font-semibold text-gray-400 hover:text-gray-200 transition-colors">
-                                    Technical Details
-                                  </summary>
-                                  <div className="mt-3 space-y-4">
-                                    <div>
-                                      <strong className="text-xs text-gray-300">Full Density Matrix:</strong>
-                                      <pre className="bg-gray-800/30 rounded p-2 text-xs overflow-x-auto mt-1 text-gray-300">
-                                        {simulationResult?.densityMatrix ? formatDensityMatrix(simulationResult.densityMatrix) : 'No Data'}
-                                      </pre>
-                                    </div>
-                                    {reducedStates.length > 0 && (
-                                      <div>
-                                        <strong className="text-xs text-gray-300">Reduced Density Matrices:</strong>
-                                        <div className="grid grid-cols-1 gap-3 mt-2">
-                                          {reducedStates.map((state, index) => (
-                                            <div key={index}>
-                                              <div className="text-xs font-semibold mb-1 text-gray-200">Qubit {index}:</div>
-                                              <pre className="bg-gray-800/30 rounded p-2 text-xs text-gray-300">
-                                                {formatDensityMatrix(state.matrix)}
-                                              </pre>
-                                            </div>
+                                              </CardContent>
+                                            </Card>
                                           ))}
                                         </div>
                                       </div>
-                                    )}
+                                    ) : (
+                                      <div className="text-center text-gray-400 text-sm py-4">
+                                        No qubits to display.
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Detailed Quantum Parameters */}
+                                  <div className="grid grid-cols-1 gap-4 pt-4">
+                                    {/* Quantum State Properties */}
+                                    <Card className="border-border/50">
+                                      <CardHeader>
+                                        <CardTitle className="text-sm text-gray-200">Quantum State Properties</CardTitle>
+                                      </CardHeader>
+                                      <CardContent className="p-4">
+                                        <div className="space-y-4">
+                                          {(() => {
+                                            const activeQubits = reducedStates
+                                              .map((state, index) => ({ state, index }))
+                                              .filter(({ index }) => {
+                                                return currentCircuit?.gates.some(gate =>
+                                                  gate.qubits.includes(index)
+                                                );
+                                              });
+
+                                            const qubitsToShow = activeQubits.length > 0 ? activeQubits : reducedStates.map((state, index) => ({ state, index }));
+
+                                            return qubitsToShow.map(({ state, index }) => (
+                                              <div key={index} className="border-b border-gray-700/20 pb-4 last:border-b-0">
+                                                <div className="text-xs font-semibold mb-3 text-gray-200">Qubit {index}</div>
+                                                <div className="grid grid-cols-2 gap-3 text-xs">
+                                                  <div>
+                                                    <span className="text-gray-400">Bloch Vector:</span>
+                                                    <div className="font-mono text-gray-300 mt-1">
+                                                      x: {state.blochVector.x.toFixed(3)}<br />
+                                                      y: {state.blochVector.y.toFixed(3)}<br />
+                                                      z: {state.blochVector.z.toFixed(3)}
+                                                    </div>
+                                                  </div>
+                                                  <div>
+                                                    <span className="text-gray-400">Properties:</span>
+                                                    <div className="font-mono text-gray-300 mt-1">
+                                                      Purity: {state.purity?.toFixed(3) || '1.000'}<br />
+                                                      Radius: {state.reducedRadius?.toFixed(3) || '1.000'}<br />
+                                                      {state.isEntangled !== undefined && (
+                                                        <>Entangled: {state.isEntangled ? 'Yes' : 'No'}</>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ));
+                                          })()}
+                                        </div>
+                                      </CardContent>
+                                    </Card>
                                   </div>
-                                </details>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
 
-
-
-
-                    </div>
-                  </div>
-                </TabsContent>
-                {/* Code Editor */}
-                <TabsContent value="code" className="space-y-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    <div className="xl:col-span-8">
-                      <CodeEditor
-                        onCircuitChange={(circuit) => {
-                          setCurrentCircuit(circuit);
-                          // Update qubit count if circuit has different number
-                          if (circuit && circuit.numQubits !== numQubits) {
-                            setNumQubits(circuit.numQubits);
-                          }
-                          // Update code if sync allows code-to-visual
-                          if (syncDirection === 'code-to-visual' || syncDirection === 'bidirectional') {
-                            const qiskitCode = circuitToQiskitCode(circuit);
-                            setCircuitCode(qiskitCode);
-                          }
-                          // Reset circuit load message status when user explicitly changes circuit
-                          setCircuitLoadMessageShown(false);
-                        }}
-                        onResultsChange={setReducedStates}
-                        initialCode={circuitCode}
-                        layoutMode="full"
-                      />
-                    </div>
-
-                    {/* Code Editor Sidebar */}
-                    <div className="xl:col-span-4 space-y-6">
-                      {/* Circuit Preview */}
-                      {currentCircuit && (
-                        <Card className="border-accent/20">
-                          <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-accent">
-                              <CircuitBoard className="w-5 h-5" />
-                              Circuit Preview
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="p-4">
-                            <div className="space-y-4">
-                              {/* Circuit Stats */}
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div className="bg-muted/20 rounded-lg p-4">
-                                  <div className="text-muted-foreground mb-1">Qubits</div>
-                                  <div className="font-semibold text-lg">{currentCircuit.numQubits}</div>
-                                </div>
-                                <div className="bg-muted/20 rounded-lg p-4">
-                                  <div className="text-muted-foreground mb-1">Gates</div>
-                                  <div className="font-semibold text-lg">{currentCircuit.gates.length}</div>
-                                </div>
-                              </div>
-
-                              {/* Circuit Diagram */}
-                              <div className="border border-muted/20 rounded-lg p-4 bg-background/50">
-                                <CircuitDiagram circuit={currentCircuit} />
-                              </div>
-
-                              {/* Gate List */}
-                              {currentCircuit.gates.length > 0 && (
-                                <div className="space-y-2">
-                                  <h4 className="font-semibold text-sm">Gates Applied:</h4>
-                                  <div className="flex flex-wrap gap-2">
-                                    {currentCircuit.gates.map((gate, index) => (
-                                      <Badge key={index} variant="outline" className="text-xs">
-                                        {gate.name}({gate.qubits.join(',')})
-                                      </Badge>
-                                    ))}
-                                  </div>
+                                  {/* Technical Details (Collapsible) */}
+                                  <details className="group pt-2">
+                                    <summary className="cursor-pointer text-sm font-semibold text-gray-400 hover:text-gray-200 transition-colors">
+                                      Technical Details
+                                    </summary>
+                                    <div className="mt-3 space-y-4">
+                                      <div>
+                                        <strong className="text-xs text-gray-300">Full Density Matrix:</strong>
+                                        <pre className="bg-gray-800/30 rounded p-2 text-xs overflow-x-auto mt-1 text-gray-300">
+                                          {simulationResult?.densityMatrix ? formatDensityMatrix(simulationResult.densityMatrix) : 'No Data'}
+                                        </pre>
+                                      </div>
+                                      {reducedStates.length > 0 && (
+                                        <div>
+                                          <strong className="text-xs text-gray-300">Reduced Density Matrices:</strong>
+                                          <div className="grid grid-cols-1 gap-3 mt-2">
+                                            {reducedStates.map((state, index) => (
+                                              <div key={index}>
+                                                <div className="text-xs font-semibold mb-1 text-gray-200">Qubit {index}:</div>
+                                                <pre className="bg-gray-800/30 rounded p-2 text-xs text-gray-300">
+                                                  {formatDensityMatrix(state.matrix)}
+                                                </pre>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </details>
                                 </div>
                               )}
                             </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </TabsContent>
+                  </TabsContent>
 
+                  {/* Code Editor */}
+                  <TabsContent value="code" className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                      <div className="xl:col-span-8">
+                        <CodeEditor
+                          onCircuitChange={(circuit) => {
+                            setCurrentCircuit(circuit);
+                            // Update qubit count if circuit has different number
+                            if (circuit && circuit.numQubits !== numQubits) {
+                              setNumQubits(circuit.numQubits);
+                            }
+                            // Update code if sync allows code-to-visual
+                            if (syncDirection === 'code-to-visual' || syncDirection === 'bidirectional') {
+                              const qiskitCode = circuitToQiskitCode(circuit);
+                              setCircuitCode(qiskitCode);
+                            }
+                            // Reset circuit load message status when user explicitly changes circuit
+                            setCircuitLoadMessageShown(false);
+                          }}
+                          onResultsChange={setReducedStates}
+                          initialCode={circuitCode}
+                          layoutMode="full"
+                        />
+                      </div>
 
-                {/* Quantum Applications */}
-                <TabsContent value="applications" className="space-y-6">
-                  <QuantumApplications
-                    onCircuitLoad={(circuit) => {
-                      setCurrentCircuit(circuit);
-                      setNumQubits(circuit.numQubits);
-                      // Track application usage
-                      trackApplicationUsage('quantum_applications', 'circuit_loaded');
-                      // Switch to circuit tab to show the loaded circuit
-                      setActiveTab('circuit');
-                      // Only show toast message once per circuit load
-                      if (!circuitLoadMessageShown) {
-                        toast.success('Application circuit loaded! Switch to Circuit tab to explore.');
-                        setCircuitLoadMessageShown(true);
-                      }
-                    }}
-                  />
-                </TabsContent>
+                      {/* Code Editor Sidebar */}
+                      <div className="xl:col-span-4 space-y-6">
+                        {/* Circuit Preview */}
+                        {currentCircuit && (
+                          <Card className="border-accent/20">
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2 text-accent">
+                                <CircuitBoard className="w-5 h-5" />
+                                Circuit Preview
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-4">
+                              <div className="space-y-4">
+                                {/* Circuit Stats */}
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div className="bg-muted/20 rounded-lg p-4">
+                                    <div className="text-muted-foreground mb-1">Qubits</div>
+                                    <div className="font-semibold text-lg">{currentCircuit.numQubits}</div>
+                                  </div>
+                                  <div className="bg-muted/20 rounded-lg p-4">
+                                    <div className="text-muted-foreground mb-1">Gates</div>
+                                    <div className="font-semibold text-lg">{currentCircuit.gates.length}</div>
+                                  </div>
+                                </div>
 
-                {/* Advanced Visualization */}
-                <TabsContent value="visualization" className="space-y-6">
-                  <AdvancedVisualization
-                    circuit={currentCircuit}
-                    results={reducedStates}
-                  />
-                </TabsContent>
+                                {/* Circuit Diagram */}
+                                <div className="border border-muted/20 rounded-lg p-4 bg-background/50">
+                                  <CircuitDiagram circuit={currentCircuit} />
+                                </div>
 
-                {/* Analytics & Performance */}
-                <TabsContent value="analytics" className="space-y-6">
-                  <QuantumAnalytics
-                    circuit={currentCircuit}
-                    results={reducedStates}
-                    executionMethod="local"
-                    backend="Local Simulator"
-                  />
-                </TabsContent>
+                                {/* Gate List */}
+                                {currentCircuit.gates.length > 0 && (
+                                  <div className="space-y-2">
+                                    <h4 className="font-semibold text-sm">Gates Applied:</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                      {currentCircuit.gates.map((gate, index) => (
+                                        <Badge key={index} variant="outline" className="text-xs">
+                                          {gate.name}({gate.qubits.join(',')})
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
 
+                  {/* Quantum Applications */}
+                  <TabsContent value="applications" className="space-y-6">
+                    <QuantumApplications
+                      onCircuitLoad={(circuit) => {
+                        setCurrentCircuit(circuit);
+                        setNumQubits(circuit.numQubits);
+                        // Track application usage
+                        trackApplicationUsage('quantum_applications', 'circuit_loaded');
+                        // Switch to circuit tab to show the loaded circuit
+                        setActiveTab('circuit');
+                        // Only show toast message once per circuit load
+                        if (!circuitLoadMessageShown) {
+                          toast.success('Application circuit loaded! Switch to Circuit tab to explore.');
+                          setCircuitLoadMessageShown(true);
+                        }
+                      }}
+                    />
+                  </TabsContent>
 
-                {/* VQE Playground */}
-                <TabsContent value="vqe" className="space-y-6">
-                  <Suspense fallback={<Loading size="lg" />}>
-                    <VQEPlayground />
-                  </Suspense>
-                </TabsContent>
+                  {/* Advanced Visualization */}
+                  <TabsContent value="visualization" className="space-y-6">
+                    <AdvancedVisualization
+                      circuit={currentCircuit}
+                      results={reducedStates}
+                    />
+                  </TabsContent>
 
+                  {/* Analytics & Performance */}
+                  <TabsContent value="analytics" className="space-y-6">
+                    <QuantumAnalytics
+                      circuit={currentCircuit}
+                      results={reducedStates}
+                      executionMethod="local"
+                      backend="Local Simulator"
+                    />
+                  </TabsContent>
 
-                {/* Quantum Medical Imaging */}
-                <TabsContent value="medical-imaging" className="space-y-6">
-                  <Suspense fallback={<Loading size="lg" />}>
-                    <QuantumMedicalImaging />
-                  </Suspense>
-                </TabsContent>
+                  {/* VQE Playground */}
+                  <TabsContent value="vqe" className="space-y-6">
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <VQEPlayground />
+                    </Suspense>
+                  </TabsContent>
 
-                {/* Noise Simulator */}
-                <TabsContent value="noise" className="space-y-6">
-                  <Suspense fallback={<Loading size="lg" />}>
-                    <NoiseSimulator />
-                  </Suspense>
-                </TabsContent>
+                  {/* Quantum Medical Imaging */}
+                  <TabsContent value="medical-imaging" className="space-y-6">
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <QuantumMedicalImaging />
+                    </Suspense>
+                  </TabsContent>
 
-                {/* AI Tutor */}
-                <TabsContent value="tutor" className="space-y-6">
-                  <Suspense fallback={<Loading size="lg" />}>
-                    <AITutor />
-                  </Suspense>
-                </TabsContent>
+                  {/* Noise Simulator */}
+                  <TabsContent value="noise" className="space-y-6">
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <NoiseSimulator />
+                    </Suspense>
+                  </TabsContent>
 
-                {/* Gamification System */}
-                <TabsContent value="gamify" className="space-y-6">
-                  <Suspense fallback={<Loading size="lg" />}>
-                    <GamificationSystem />
-                  </Suspense>
-                </TabsContent>
+                  {/* AI Tutor */}
+                  <TabsContent value="tutor" className="space-y-6">
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <AITutor />
+                    </Suspense>
+                  </TabsContent>
 
-                {/* Advanced Analytics */}
-                <TabsContent value="insights" className="space-y-6">
-                  <Suspense fallback={<Loading size="lg" />}>
-                    <AdvancedAnalytics />
-                  </Suspense>
-                </TabsContent>
+                  {/* Gamification System */}
+                  <TabsContent value="gamify" className="space-y-6">
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <GamificationSystem />
+                    </Suspense>
+                  </TabsContent>
 
-
-
-              </Tabs>
+                  {/* Advanced Analytics */}
+                  <TabsContent value="insights" className="space-y-6">
+                    <Suspense fallback={<Loading size="lg" />}>
+                      <AdvancedAnalytics />
+                    </Suspense>
+                  </TabsContent>
+                </Tabs>
+              </div>
             </div>
+          </motion.div>
         </div>
-      </motion.div>
-    </div>
-    </div >
+      </div>
 
-    <BlochSphereModal
-      isOpen={isBlochModalOpen}
-      onClose={() => setIsBlochModalOpen(false)}
-      results={reducedStates}
-      mapVector={mapVector}
-    />
+      <BlochSphereModal
+        isOpen={isBlochModalOpen}
+        onClose={() => setIsBlochModalOpen(false)}
+        results={reducedStates}
+        mapVector={mapVector}
+      />
 
-    <LoginModal
-      isOpen={isLoginModalOpen}
-      onClose={() => setIsLoginModalOpen(false)}
-      onSwitchToRegister={() => {
-        setIsLoginModalOpen(false);
-        setIsRegisterModalOpen(true);
-      }}
-    />
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onSwitchToRegister={() => {
+          setIsLoginModalOpen(false);
+          setIsRegisterModalOpen(true);
+        }}
+      />
 
-    <RegisterModal
-      isOpen={isRegisterModalOpen}
-      onClose={() => setIsRegisterModalOpen(false)}
-      onSwitchToLogin={() => {
-        setIsRegisterModalOpen(false);
-        setIsLoginModalOpen(true);
-      }}
-    />
+      <RegisterModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        onSwitchToLogin={() => {
+          setIsRegisterModalOpen(false);
+          setIsLoginModalOpen(true);
+        }}
+      />
 
-    <IBMQuantumConnection
-      isOpen={isIBMConnectionModalOpen}
-      onClose={() => setIsIBMConnectionModalOpen(false)}
-    />
+      <IBMQuantumConnection
+        isOpen={isIBMConnectionModalOpen}
+        onClose={() => setIsIBMConnectionModalOpen(false)}
+      />
 
-    <FloatingAI />
-  </AppLayout >
-);
+      <FloatingAI />
+    </AppLayout>
+  );
 };
 
 export default Workspace;

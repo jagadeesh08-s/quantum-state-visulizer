@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Html, Text } from '@react-three/drei';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,13 +22,16 @@ import {
   Earth,
   Eye,
   BarChart3,
-  MonitorSpeaker
+  MonitorSpeaker,
+  Target
 } from 'lucide-react';
 import { toast } from 'sonner';
-import BlochSphere3D, { BlochProbabilities } from '../core/BlochSphere';
+import BlochSphere3D, { BlochProbabilities, BlochSphereScene } from '../core/BlochSphere';
 import { simulateCircuit } from '@/utils/quantum/quantumSimulation';
 import type { QuantumCircuit, DensityMatrix } from '@/utils/quantum/quantumSimulation';
 import { GPUQuantumVisualizer, QuantumState, EvolutionParameters, EntanglementParameters } from '@/utils/quantum/gpuQuantumVisualizer';
+import StateVisualizer2D from '../core/StateVisualizer2D';
+
 
 interface AdvancedVisualizationProps {
   circuit: QuantumCircuit | null;
@@ -44,6 +49,7 @@ interface VisualizationState {
   viewMode: 'single' | 'all';
   enableGPU: boolean;
   showPerformance: boolean;
+  renderMode: '3D' | '2D';
 }
 
 const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo(({
@@ -60,7 +66,8 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
     selectedQubit: 0,
     viewMode: 'all',
     enableGPU: true,
-    showPerformance: false
+    showPerformance: false,
+    renderMode: (circuit?.numQubits || results.length || 1) > 5 ? '2D' : '3D'
   });
 
   const [performanceMetrics, setPerformanceMetrics] = useState<{ gpuTime: number; cpuTime: number; speedup: number }>({
@@ -138,7 +145,12 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
   // Handle performance updates from BlochSphere components
   const handlePerformanceUpdate = useCallback((metrics: { gpuTime: number; cpuTime: number; speedup: number }) => {
     setPerformanceMetrics(metrics);
+    setPerformanceMetrics(metrics);
   }, []);
+
+  const qubitCount = useMemo(() => circuit?.numQubits || results.length || 1, [circuit, results.length]);
+
+
 
 
   const handleExportVisualization = useCallback(async () => {
@@ -150,23 +162,87 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
     }
   }, []);
 
-  const qubitCount = useMemo(() => circuit?.numQubits || results.length || 1, [circuit, results.length]);
+  /* New Unified 3D Rendering Logic */
+  const renderUnified3DView = useCallback(() => {
+    // Calculate grid layout
+    const cols = Math.ceil(Math.sqrt(qubitCount));
+    const spacing = 3.5;
 
-  const render3DBlochSpheres = useCallback(() => {
+    return (
+      <div className="w-full h-[600px] bg-slate-900/50 rounded-xl border border-slate-700 relative overflow-hidden">
+        <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur px-3 py-1 rounded text-xs text-blue-300 pointer-events-none">
+          <span className="font-bold">GPU Accelerated</span> • Unified Context
+        </div>
+
+        <Canvas camera={{ position: [0, -5, 10], fov: 50 }} gl={{ antialias: true, alpha: true }}>
+          <ambientLight intensity={0.5} />
+          <pointLight position={[10, 10, 10]} intensity={1.5} color="#ffffff" />
+          <pointLight position={[-10, -10, -5]} intensity={1} color="#4f46e5" />
+
+          <group position={[-(cols * spacing) / 2 + spacing / 2, (cols * spacing) / 2 - spacing / 2, 0]}>
+            {results.map((result, i) => {
+              if (vizState.viewMode === 'single' && i !== vizState.selectedQubit) return null;
+
+              const row = Math.floor(i / cols);
+              const col = i % cols;
+              const vector = result?.blochVector || { x: 0, y: 0, z: 1 };
+
+              return (
+                <group key={i} position={[col * spacing, -row * spacing, 0]}>
+                  <BlochSphereScene
+                    vector={vector}
+                    label={`Q${i}`}
+                    isDark={true}
+                    showAxes={true}
+                  />
+                  {/* Overlay Metrics via Html */}
+                  <Html position={[0, -1.8, 0]} center transform sprite={false}>
+                    <div className="w-32 p-2 bg-black/80 rounded border border-white/10 backdrop-blur-md">
+                      <div className="text-[10px] pb-1 text-slate-400 border-b border-white/10 mb-1 flex justify-between">
+                        <span>Purity</span>
+                        <span className="text-white">{result?.purity?.toFixed(2) || '1.0'}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-blue-400">|0⟩</span>
+                        <span className="text-slate-200">{((1 + vector.z) / 2 * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  </Html>
+                </group>
+              );
+            })}
+          </group>
+
+          <OrbitControls makeDefault enablePan={true} maxDistance={50} minDistance={2} />
+        </Canvas>
+      </div>
+    );
+  }, [results, qubitCount, vizState.viewMode, vizState.selectedQubit]);
+
+  const renderStateVisualization = useCallback(() => {
     if (!vizState.show3D) return null;
 
+    // Use Unified 3D View for 3D mode
+    if (vizState.renderMode === '3D') {
+      return renderUnified3DView();
+    }
+
+    // 2D Mode (Keep existing per-card logic or unify as well? Keeping per-card for 2D is fine/better for list view)
+    // Actually, users might prefer the grid view for 3D. 
+    // Let's keep 2D as a grid of cards as before, but 3D is now one big view.
+
+    // Existing 2D Logic
     const spheres: JSX.Element[] = [];
 
     for (let i = 0; i < qubitCount; i++) {
       if (vizState.viewMode === 'single' && i !== vizState.selectedQubit) continue;
 
       const result = results[i];
-      let vector = { x: 0, y: 0, z: 1 }; // Default |0⟩
+      let vector = { x: 0, y: 0, z: 1 };
 
       if (result && result.blochVector) {
         vector = result.blochVector;
       } else {
-        // Fallback or placeholder if specific qubit result is missing
         vector = { x: 0, y: 0, z: 1 };
       }
 
@@ -190,61 +266,18 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
             </div>
           </div>
 
-          {/* Bloch Sphere Container */}
+          {/* 2D Visualization Card */}
           <div className="bg-gray-900/80 rounded-xl p-6 border border-border/30">
-            {/* Bloch Sphere */}
             <div className="aspect-square max-w-sm mx-auto mb-6">
-              <BlochSphere3D
+              <StateVisualizer2D
                 vector={vector}
                 className="w-full h-full"
                 showAxes={true}
-                showGrid={true}
-                interactive={true}
               />
             </div>
-
-            {/* Metrics */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Bloch Vector */}
-              <div className="bg-slate-700/50 rounded-lg p-3">
-                <div className="text-xs text-slate-400 font-medium mb-1">Bloch Vector</div>
-                <div className="text-sm font-mono text-slate-200">
-                  ({vector.x.toFixed(2)}, {vector.y.toFixed(2)}, {vector.z.toFixed(2)})
-                </div>
-              </div>
-
-              {/* Purity */}
-              <div className="bg-slate-700/50 rounded-lg p-3">
-                <div className="text-xs text-slate-400 font-medium mb-1">Purity</div>
-                <div className="text-sm font-semibold text-slate-200">
-                  {results[i]?.purity?.toFixed(3) || '1.000'}
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Properties */}
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Superposition</span>
-                <span className="text-sm font-medium text-slate-200">
-                  {results[i]?.superposition?.toFixed(3) || '0.000'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">Entanglement</span>
-                <span className="text-sm font-medium text-slate-200">
-                  {results[i]?.entanglement?.toFixed(3) || '0.000'}
-                </span>
-              </div>
-            </div>
-
-            {/* Measurement Probabilities */}
-            <div className="mt-4 pt-4 border-t border-slate-700/50">
-              <BlochProbabilities
-                vector={vector}
-                isDark={true}
-                className="bg-slate-700/30 border-slate-600/20"
-              />
+            {/* Simple Metrics for 2D */}
+            <div className="text-center text-sm text-slate-400">
+              Purity: <span className="text-white">{result?.purity?.toFixed(3) || '1.000'}</span>
             </div>
           </div>
         </motion.div>
@@ -252,11 +285,12 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
     }
 
     return (
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12 items-start justify-items-center">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 justify-items-center">
         {spheres}
       </div>
     );
-  }, [vizState.show3D, vizState.viewMode, vizState.selectedQubit, qubitCount, results, currentTime]);
+
+  }, [vizState.show3D, vizState.viewMode, vizState.selectedQubit, vizState.renderMode, qubitCount, results, renderUnified3DView]);
 
   const renderProbabilityDistribution = useCallback(() => {
     if (!vizState.showProbabilities) return null;
@@ -478,6 +512,31 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
                   </Select>
                 </div>
 
+                {/* Render Mode Toggle (3D/2D) */}
+                <div className="space-y-2">
+                  <Label className="text-slate-300 text-sm font-medium">Visualization Style</Label>
+                  <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-600">
+                    <button
+                      onClick={() => setVizState(prev => ({ ...prev, renderMode: '3D' }))}
+                      className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-xs font-medium transition-all ${vizState.renderMode === '3D'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                    >
+                      <Earth className="w-3 h-3" /> 3D Sphere
+                    </button>
+                    <button
+                      onClick={() => setVizState(prev => ({ ...prev, renderMode: '2D' }))}
+                      className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-xs font-medium transition-all ${vizState.renderMode === '2D'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                    >
+                      <Target className="w-3 h-3" /> 2D View
+                    </button>
+                  </div>
+                </div>
+
                 {/* Qubit Selector */}
                 <AnimatePresence>
                   {vizState.viewMode === 'single' && (
@@ -547,7 +606,7 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
               <div className="border-t border-slate-700 pt-4 sm:pt-6">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                   {[
-                    { key: 'show3D', label: '3D Spheres', icon: Atom },
+                    { key: 'show3D', label: 'State View', icon: Atom },
                     { key: 'showProbabilities', label: 'Probabilities', icon: Waves },
                     { key: 'showEntanglement', label: 'Entanglement', icon: Cpu },
                     { key: 'animateEvolution', label: 'Evolution', icon: Zap },
@@ -591,11 +650,11 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
                     Quantum States
                   </CardTitle>
                   <p className="text-slate-400 text-sm">
-                    3D visualization of quantum superposition
+                    {vizState.renderMode === '3D' ? '3D' : '2D'} visualization of quantum superposition
                   </p>
                 </CardHeader>
                 <CardContent className="p-6">
-                  {render3DBlochSpheres()}
+                  {renderStateVisualization()}
                 </CardContent>
               </Card>
             </motion.div>
