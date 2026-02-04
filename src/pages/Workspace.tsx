@@ -67,6 +67,7 @@ import { UserMenu } from '@/components/auth/UserMenu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIBMQuantum } from '@/contexts/IBMQuantumContext';
 import { IBMQuantumConnection } from '@/components/tools/IBMQuantumConnection';
+import StateVisualizer2D from '@/components/core/StateVisualizer2D';
 
 import { Suspense, lazy } from 'react';
 
@@ -132,6 +133,9 @@ const Workspace: React.FC = () => {
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  // Visualization Mode (2D/3D)
+  const [renderMode, setRenderMode] = useState<'2D' | '3D'>('3D');
 
 
 
@@ -366,6 +370,13 @@ qc = QuantumCircuit(${circuit.numQubits})
         toast.warning(`Circuit exceeds current limit (${maxQubits} qubits). Enabling Performance Mode.`);
         setIsPerformanceMode(true);
       }
+
+      // Auto-switch to 2D for high qubit counts (> 5)
+      if (circuit.numQubits > 5 && renderMode === '3D') {
+        setRenderMode('2D');
+        toast.info('Switched to 2D visualization for better performance with high qubit count.');
+      }
+
       setNumQubits(circuit.numQubits);
     }
 
@@ -754,11 +765,10 @@ qc = QuantumCircuit(${circuit.numQubits})
                     <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-primary/50 via-accent to-secondary/50 rounded-full blur-sm opacity-60" />
                   </div>
 
-                  {/* Circuit Builder */}
-                  <TabsContent value="circuit" className="space-y-4">
-                    <div className={`grid grid-cols-1 xl:grid-cols-12 ${layout.containerClass}`}>
-                      {/* Left Column - Circuit Canvas */}
-                      <div className={`${layout.circuitBuilderColSpan} space-y-4 ${layout.orderReversed ? 'xl:order-2' : ''}`}>
+                  <TabsContent value="circuit" className="space-y-4 w-full">
+                    <div className="w-full flex flex-col gap-6">
+                      {/* Full Width Circuit Canvas Container */}
+                      <div className="w-full space-y-4">
                         <Card className="border border-border/40 bg-card/60 backdrop-blur-xl shadow-lg rounded-2xl overflow-hidden relative">
                           {/* Glass reflection */}
                           <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
@@ -789,6 +799,7 @@ qc = QuantumCircuit(${circuit.numQubits})
                                 }))
                               } : undefined}
                               isPerformanceMode={isPerformanceMode}
+                              renderMode={renderMode}
                             />
                           </CardContent>
                         </Card>
@@ -1074,46 +1085,80 @@ qc = QuantumCircuit(${circuit.numQubits})
                                             View All
                                           </Button>
                                         </div>
-                                        <div className="grid grid-cols-1 gap-6">
+
+                                        {/* Visualization Style Toggle */}
+                                        <div className="flex items-center gap-4 px-5 py-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-inner mb-6">
+                                          <div className="flex flex-col">
+                                            <span className="text-[10px] uppercase tracking-widest text-white/40 font-black">Visual Style</span>
+                                            <span className="text-xs font-bold text-white/90">{renderMode === '3D' ? 'Immersive 3D' : 'Lightweight 2D'}</span>
+                                          </div>
+                                          <div className="flex bg-white/5 rounded-full p-1 ml-auto">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => setRenderMode('3D')}
+                                              className={`h-8 px-4 rounded-full text-[10px] font-bold transition-all duration-300 ${renderMode === '3D' ? 'bg-cyan-500 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                                            >
+                                              3D SPHERE
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => setRenderMode('2D')}
+                                              className={`h-8 px-4 rounded-full text-[10px] font-bold transition-all duration-300 ${renderMode === '2D' ? 'bg-cyan-500 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                                            >
+                                              2D VIEW
+                                            </Button>
+                                          </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                           {qubitsToShow.map(({ state, index }) => (
-                                            <Card key={index} className="border border-white/20 bg-white/5 backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] rounded-2xl hover:shadow-[0_8px_40px_0_rgba(6,182,212,0.3)] transition-all duration-300 relative overflow-hidden">
+                                            <Card key={index} className="border border-border/40 bg-card/60 backdrop-blur-xl shadow-lg rounded-2xl transition-all duration-300 relative overflow-hidden">
                                               {/* Glass reflection overlay */}
                                               <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
 
                                               <CardHeader className="pb-3 relative">
-                                                <CardTitle className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                                                  <div className="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+                                                <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                                  <div className="w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
                                                   Qubit {index}
                                                 </CardTitle>
                                               </CardHeader>
                                               <CardContent className="p-4 space-y-4 relative">
-                                                <div className="h-80 w-full bg-gray-900/50 border border-gray-700/30 rounded-lg p-3 flex items-center justify-center relative overflow-hidden">
+                                                <div className="h-80 w-full bg-muted/40 border border-border/50 rounded-lg p-3 flex items-center justify-center relative overflow-hidden">
                                                   {/* Safety check for valid Bloch vector */}
                                                   {state.blochVector && !isNaN(state.blochVector.x) ? (
-                                                    <BlochSphere3D
-                                                      vector={mapVector(state.blochVector)}
-                                                      size={400}
-                                                      className="w-full h-full"
-                                                    />
+                                                    renderMode === '3D' ? (
+                                                      <BlochSphere3D
+                                                        vector={mapVector(state.blochVector)}
+                                                        size={400}
+                                                        className="w-full h-full"
+                                                      />
+                                                    ) : (
+                                                      <StateVisualizer2D
+                                                        vector={state.blochVector}
+                                                        className="w-full h-full"
+                                                      />
+                                                    )
                                                   ) : (
                                                     <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
                                                       Invalid State Vector
                                                     </div>
                                                   )}
                                                 </div>
-                                                <div className="text-xs space-y-2 pt-2 border-t border-white/5">
+                                                <div className="text-xs space-y-2 pt-2 border-t border-border/10">
                                                   <div className="flex justify-between items-center">
-                                                    <span className="text-gray-400">Purity:</span>
-                                                    <span className="font-mono font-semibold text-gray-200">{state.purity?.toFixed(3) || '1.000'}</span>
+                                                    <span className="text-muted-foreground">Purity:</span>
+                                                    <span className="font-mono font-semibold text-foreground">{state.purity?.toFixed(3) || '1.000'}</span>
                                                   </div>
                                                   <div className="flex justify-between items-center">
-                                                    <span className="text-gray-400">Superposition:</span>
-                                                    <span className="font-mono font-semibold text-gray-200">{state.superposition?.toFixed(3) || '0.000'}</span>
+                                                    <span className="text-muted-foreground">Superposition:</span>
+                                                    <span className="font-mono font-semibold text-foreground">{state.superposition?.toFixed(3) || '0.000'}</span>
                                                   </div>
                                                   {currentCircuit && currentCircuit.numQubits > 1 && (
                                                     <div className="flex justify-between items-center">
-                                                      <span className="text-gray-400">Entanglement:</span>
-                                                      <span className="font-mono font-semibold text-gray-200">{state.entanglement?.toFixed(3) || '0.000'}</span>
+                                                      <span className="text-muted-foreground">Entanglement:</span>
+                                                      <span className="font-mono font-semibold text-foreground">{state.entanglement?.toFixed(3) || '0.000'}</span>
                                                     </div>
                                                   )}
                                                 </div>

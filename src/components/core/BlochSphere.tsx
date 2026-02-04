@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Line, Text, Html } from '@react-three/drei';
+import { OrbitControls, Line, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 import { useTheme } from '@/components/general/ThemeProvider';
@@ -304,7 +304,7 @@ const BlochSphere3D: React.FC<BlochSphereProps> = React.memo(({
       style={{
         width: '100%',
         height: '100%',
-        background: colors.background,
+        background: 'transparent',
         boxShadow: isDark ? 'inset 0 0 50px rgba(0,0,0,0.5)' : 'inset 0 0 20px rgba(0,0,0,0.05)'
       }}
       onMouseEnter={() => setHovered(true)}
@@ -328,7 +328,7 @@ const BlochSphere3D: React.FC<BlochSphereProps> = React.memo(({
             highlightedAxis={highlightedAxis}
           />
 
-          {interactive && <OrbitControls enablePan={false} maxDistance={8} minDistance={1.5} autoRotate autoRotateSpeed={2} />}
+          {interactive && <OrbitControls enablePan={false} maxDistance={8} minDistance={1.5} autoRotate={!hovered} autoRotateSpeed={2} />}
         </Canvas>
 
         {/* Measurement Probabilities Overlay */}

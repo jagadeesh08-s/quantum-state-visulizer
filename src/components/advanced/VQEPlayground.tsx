@@ -114,10 +114,13 @@ export const VQEPlayground: React.FC = () => {
   const [jobHistory, setJobHistory] = useState<VQEJob[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
+  const runningRef = React.useRef(false);
+
   const runVQE = async () => {
-    if (isRunning) return;
+    if (runningRef.current) return;
 
     setIsRunning(true);
+    runningRef.current = true;
     const jobId = `vqe_${Date.now()}`;
 
     const job: VQEJob = {
@@ -146,21 +149,40 @@ export const VQEPlayground: React.FC = () => {
 
     // Override computeExpectationValue with real simulation
     (vqeRunner as any).computeExpectationValue = (circuit: any): number => {
-      const results = simulateCircuit({
-        numQubits: 2,
-        gates: circuit.gates
-      });
+      try {
+        // Map gate parameters to match circuitOperations expectation (angle property)
+        const compatibleGates = circuit.gates.map((g: any) => ({
+          ...g,
+          parameters: g.parameters && g.parameters.length ? { angle: g.parameters[0] } : undefined
+        }));
 
-      const rho = results.densityMatrix as ComplexMatrix;
-      let energy = 0;
+        const results = simulateCircuit({
+          numQubits: 2,
+          gates: compatibleGates
+        });
 
-      // Calculate ⟨ψ|H|ψ⟩ = Tr(ρH)
-      for (let i = 0; i < 4; i++) {
-        for (let j = 0; j < 4; j++) {
-          energy += rho[i][j].real * hamiltonian[j][i];
+        if (!results.densityMatrix || results.error) {
+          console.error("VQE Simulation Failed:", results.error);
+          return 1000; // High energy penalty
         }
+
+        const rho = results.densityMatrix as ComplexMatrix;
+        let energy = 0;
+
+        // Calculate ⟨ψ|H|ψ⟩ = Tr(ρH)
+        for (let i = 0; i < 4; i++) {
+          for (let j = 0; j < 4; j++) {
+            // Safety check for dense matrix
+            if (rho[i] && rho[i][j]) {
+              energy += rho[i][j].real * hamiltonian[j][i];
+            }
+          }
+        }
+        return energy;
+      } catch (err) {
+        console.error("VQE Fatal Error:", err);
+        return 1000;
       }
-      return energy;
     };
 
     const optimizer = new SPSAOptimizer();
@@ -172,7 +194,8 @@ export const VQEPlayground: React.FC = () => {
     let bestEnergy = Infinity;
 
     const tick = () => {
-      if (!isRunning) return;
+      // Use ref to check current running state instead of stale closure variable
+      if (!runningRef.current) return;
 
       const result = vqeRunner.optimize(optimizer, params);
       currentIteration += result.convergenceHistory.length;
@@ -195,6 +218,7 @@ export const VQEPlayground: React.FC = () => {
 
       if (currentIteration >= maxIterations || progress >= 100) {
         setIsRunning(false);
+        runningRef.current = false;
         setCurrentJob(prev => prev ? {
           ...prev,
           status: 'completed',
@@ -219,6 +243,7 @@ export const VQEPlayground: React.FC = () => {
       error: 'User cancelled'
     } : null);
     setIsRunning(false);
+    runningRef.current = false;
   };
 
   const formatEnergy = (energy: number | null) => {

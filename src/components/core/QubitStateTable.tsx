@@ -4,18 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  Download, 
-  Copy, 
-  BarChart3, 
+import {
+  Download,
+  Copy,
+  BarChart3,
   Calculator,
   Zap,
   Target
@@ -30,25 +30,41 @@ interface QubitStateTableProps {
 const QubitStateTable: React.FC<QubitStateTableProps> = ({ results }) => {
   const [selectedTab, setSelectedTab] = useState('amplitudes');
 
+  // Helper to extract real value from number or complex object
+  const extractReal = (val: any): number => {
+    if (typeof val === 'number') return val;
+    if (val && typeof val === 'object' && 'real' in val) return val.real;
+    return 0;
+  };
+
+  // Helper to extract magnitude from number or complex object
+  const extractMagnitude = (val: any): number => {
+    if (typeof val === 'number') return Math.abs(val);
+    if (val && typeof val === 'object' && 'real' in val && 'imag' in val) {
+      return Math.sqrt(val.real * val.real + val.imag * val.imag);
+    }
+    return 0;
+  };
+
   // Calculate state amplitudes and probabilities
   const calculateStateInfo = (state: DensityMatrix, qubitIndex: number) => {
     const matrix = state.matrix;
-    
+
     // For a 2x2 density matrix, the diagonal elements give us |0⟩ and |1⟩ probabilities
-    const prob0 = matrix[0][0];
-    const prob1 = matrix[1][1];
-    
+    const prob0 = extractReal(matrix[0][0]);
+    const prob1 = extractReal(matrix[1][1]);
+
     // Off-diagonal elements give us coherence information
-    const coherence = Math.abs(matrix[0][1] as unknown as number);
-    
+    const coherence = extractMagnitude(matrix[0][1]);
+
     // Amplitude magnitudes from probabilities
-    const amp0 = Math.sqrt(Math.max(Number(prob0), 0));
-    const amp1 = Math.sqrt(Math.max(Number(prob1), 0));
+    const amp0 = Math.sqrt(Math.max(prob0, 0));
+    const amp1 = Math.sqrt(Math.max(prob1, 0));
 
     // Phase from Bloch vector: φ = atan2(y, x)
     const phaseRad = Math.atan2(state.blochVector.y, state.blochVector.x);
     const phase = phaseRad * 180 / Math.PI;
-    
+
     return {
       amplitudes: { '|0⟩': amp0, '|1⟩': amp1 },
       probabilities: { '|0⟩': prob0, '|1⟩': prob1 },
@@ -153,7 +169,7 @@ const QubitStateTable: React.FC<QubitStateTableProps> = ({ results }) => {
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
@@ -275,8 +291,8 @@ const QubitStateTable: React.FC<QubitStateTableProps> = ({ results }) => {
                 <TableBody>
                   {results.map((state, index) => {
                     const info = calculateStateInfo(state, index);
-                    const stateType = info.purity > 0.9 ? 'Pure' : 
-                                     info.purity > 0.5 ? 'Mixed' : 'Highly Mixed';
+                    const stateType = info.purity > 0.9 ? 'Pure' :
+                      info.purity > 0.5 ? 'Mixed' : 'Highly Mixed';
                     return (
                       <TableRow key={index}>
                         <TableCell className="font-mono font-semibold">
@@ -299,8 +315,8 @@ const QubitStateTable: React.FC<QubitStateTableProps> = ({ results }) => {
                         </TableCell>
                         <TableCell>
                           <Badge variant={
-                            stateType === 'Pure' ? 'default' : 
-                            stateType === 'Mixed' ? 'secondary' : 'destructive'
+                            stateType === 'Pure' ? 'default' :
+                              stateType === 'Mixed' ? 'secondary' : 'destructive'
                           }>
                             {stateType}
                           </Badge>
@@ -319,7 +335,7 @@ const QubitStateTable: React.FC<QubitStateTableProps> = ({ results }) => {
                 <BarChart3 className="w-4 h-4" />
                 Circuit Summary
               </h4>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card className="border-primary/20">
                   <CardContent className="p-4 text-center">
@@ -327,7 +343,7 @@ const QubitStateTable: React.FC<QubitStateTableProps> = ({ results }) => {
                     <div className="text-sm text-muted-foreground">Total Qubits</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card className="border-accent/20">
                   <CardContent className="p-4 text-center">
                     <div className="text-2xl font-bold text-accent">
@@ -336,7 +352,7 @@ const QubitStateTable: React.FC<QubitStateTableProps> = ({ results }) => {
                     <div className="text-sm text-muted-foreground">Avg Purity</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card className="border-green-500/20">
                   <CardContent className="p-4 text-center">
                     <div className="text-2xl font-bold text-green-500">
@@ -345,7 +361,7 @@ const QubitStateTable: React.FC<QubitStateTableProps> = ({ results }) => {
                     <div className="text-sm text-muted-foreground">Max Superposition</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card className="border-purple-500/20">
                   <CardContent className="p-4 text-center">
                     <div className="text-2xl font-bold text-purple-500">

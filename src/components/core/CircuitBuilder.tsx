@@ -73,6 +73,7 @@ interface CircuitBuilderProps {
   onQubitCountChange: (count: number) => void;
   initialCircuit?: CircuitData; // Circuit to load initially
   isPerformanceMode?: boolean;
+  renderMode?: '2D' | '3D';
 }
 
 export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
@@ -81,7 +82,8 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
   numQubits,
   onQubitCountChange,
   initialCircuit,
-  isPerformanceMode = false
+  isPerformanceMode = false,
+  renderMode = '3D'
 }) => {
   const [circuitGates, setCircuitGates] = useState<CircuitGate[]>([]);
   const [draggedGate, setDraggedGate] = useState<GateProps | null>(null);
@@ -175,14 +177,21 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
 
       // Compute output state - convert GateProps to QuantumGate format
       try {
+        // Optimization: Simulate valid small system (1-3 qubits) regardless of position
+        // Map absolute qubit indices (e.g. [10]) to relative [0] for local simulation
+        const normalizedQubits = gate.qubits.map((_, i) => i);
+
         const quantumGate = {
           name: gate.gate.name,
-          qubits: gate.qubits,
+          qubits: normalizedQubits, // Use normalized [0, 1, ...]
           parameters: gate.gate.parameters,
-          matrix: undefined // Matrix will be looked up from GATES
+          matrix: undefined
         } as QuantumGate;
+
         const inputStateString = ketStateToString(gate.inputState?.value ? { notation: gate.inputState.notation, value: gate.inputState.value } : undefined);
-        const outputState = computeGateOutputState(quantumGate, inputStateString, numQubits);
+
+        // Pass gate.qubits.length instead of global numQubits to prevent memory explosion
+        const outputState = computeGateOutputState(quantumGate, inputStateString, gate.qubits.length);
 
         gate.outputState = outputState;
 
@@ -524,11 +533,11 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
   };
 
   return (
-    <> {/* Wrap in Fragment for Dialog */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-[800px]" role="region" aria-labelledby="circuit-builder-heading">
+    <>
+      <div className="flex flex-col lg:flex-row gap-6 min-h-[800px]" role="region" aria-labelledby="circuit-builder-heading">
         {/* Left Palette */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="border-primary/20 bg-gradient-to-br from-card/80 to-card/60">
+        <div className="w-full lg:w-[280px] flex-shrink-0 lg:mr-2 space-y-4">
+          <Card className="border-primary/20 bg-gradient-to-br from-card/80 to-card/60 max-w-full">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Settings className="h-5 w-5 text-primary" />
@@ -537,10 +546,10 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
             </CardHeader>
             <CardContent>
               <Tabs value={activeGateTab} onValueChange={(value) => setActiveGateTab(value as 'single' | 'double' | 'triple')}>
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="single">Single Qubit</TabsTrigger>
-                  <TabsTrigger value="double">Two Qubit</TabsTrigger>
-                  <TabsTrigger value="triple">Three Qubit</TabsTrigger>
+                <TabsList className="flex gap-1 p-1 h-auto bg-muted/30">
+                  <TabsTrigger value="single" className="text-[10px] px-2 py-1.5 flex-1">Single</TabsTrigger>
+                  <TabsTrigger value="double" className="text-[10px] px-2 py-1.5 flex-1">Double</TabsTrigger>
+                  <TabsTrigger value="triple" className="text-[10px] px-2 py-1.5 flex-1">Triple</TabsTrigger>
                 </TabsList>
                 <TabsContent value="single" className="mt-4">
                   <div className="grid grid-cols-2 gap-2">
@@ -578,14 +587,12 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
               </Tabs>
             </CardContent>
           </Card>
-
-
         </div>
 
         {/* Circuit Canvas - right side */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="flex-1 min-w-0 space-y-4">
           <Card className="border-primary/20 bg-gradient-to-br from-card/80 to-card/60">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full animate-pulse ${isPerformanceMode ? 'bg-amber-400' : 'bg-primary'}`} />
@@ -593,10 +600,6 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground mr-2">Qubits: {numQubits} / 30</span>
-
-                  {/* IBM Quantum Button (REMOVED) */}
-
-
                   <Button
                     variant="outline"
                     size="sm"
@@ -626,21 +629,6 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                   >
                     <RotateCcw className="h-4 w-4 mr-1" />
                     Reset
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleRunOnIBM}
-                    disabled={isIBMLoading || circuitGates.length === 0}
-                    className="h-8 px-3 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/50 shadow-sm transition-all"
-                    title="Run on IBM Quantum Hardware"
-                  >
-                    {isIBMLoading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                    ) : (
-                      <Zap className="h-3.5 w-3.5 mr-1.5 fill-indigo-200" />
-                    )}
-                    Run on IBM
                   </Button>
                 </div>
               </CardTitle>
@@ -872,6 +860,33 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                 </div>
               </div>
 
+              {/* Bottom Action Bar for Circuits */}
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 p-4 bg-primary/5 border border-primary/10 rounded-xl">
+                <div className="flex items-center gap-4">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-tighter text-muted-foreground font-bold">Hardware Connection</span>
+                    <span className="text-xs font-semibold">{isAuthenticated ? 'Status: Authenticated' : 'Status: Local Only'}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="default"
+                    size="lg"
+                    onClick={handleRunOnIBM}
+                    disabled={isIBMLoading || circuitGates.length === 0}
+                    className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/50 shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] font-bold"
+                  >
+                    {isIBMLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    ) : (
+                      <Zap className="h-5 w-5 mr-2 fill-indigo-200" />
+                    )}
+                    Run Experiment on IBM Quantum
+                  </Button>
+                </div>
+              </div>
+
               {/* Circuit Summary - Outside scrollable area */}
               {circuitGates.length > 0 && (
                 <div className="mt-4 p-3 bg-muted/20 rounded-lg">
@@ -886,200 +901,139 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                 </div>
               )}
             </CardContent>
-          </Card >
+          </Card>
+
+          {renderMode === '3D' && (
+            <div className="w-full mt-6">
+              <CircuitAnalysis
+                numQubits={numQubits}
+                circuitGates={circuitGates.map(g => ({
+                  name: g.gate.name,
+                  qubits: g.qubits,
+                  parameters: g.gate.parameters
+                }))}
+                ketStates={initialKetStates}
+                ibmResults={currentJob?.results}
+                ibmStatus={currentJob?.status}
+                ibmTimeline={currentJob?.timeline}
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
 
-          {/* Gate Configuration Dialog */}
-          <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Gate Configuration</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-6">
-                {selectedGateId && (() => {
-                  const selectedGate = circuitGates.find(g => g.id === selectedGateId);
-                  if (!selectedGate) return null;
+      <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Gate Configuration</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            {selectedGateId && (() => {
+              const selectedGate = circuitGates.find(g => g.id === selectedGateId);
+              if (!selectedGate) return null;
 
-                  return (
-                    <div className="space-y-6">
-                      {/* Gate Info */}
-                      <div className="flex items-center gap-4 p-4 bg-muted/20 rounded-lg">
-                        <div className={`
+              return (
+                <div className="space-y-6">
+                  {/* Gate Info */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/20 rounded-lg">
+                    <div className={`
                         w-12 h-12 rounded-md ${selectedGate.gate.color}
                         flex items-center justify-center text-white font-bold text-lg
                       `}>
-                          {selectedGate.gate.symbol}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold">{selectedGate.gate.name}</h3>
-                          <p className="text-sm text-muted-foreground">{selectedGate.gate.description}</p>
-                          <p className="text-xs text-accent">Target qubits: {selectedGate.qubits.join(', ')}</p>
-                        </div>
+                      {selectedGate.gate.symbol}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{selectedGate.gate.name}</h3>
+                      <p className="text-sm text-muted-foreground">{selectedGate.gate.description}</p>
+                      <p className="text-xs text-accent">Target qubits: {selectedGate.qubits.join(', ')}</p>
+                    </div>
+                  </div>
+
+                  {/* Output State Preview */}
+                  {selectedGate.outputState && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">Output Result</h4>
+                        <Badge variant="outline" className="text-base px-3 py-1 bg-primary/10 border-primary/30 text-primary font-mono">
+                          {typeof selectedGate.outputState === 'string' ? selectedGate.outputState : 'Complex State'}
+                        </Badge>
                       </div>
 
-                      {/* Output State Preview - Moved to Top */}
-                      {selectedGate.outputState && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium">Output Result</h4>
-                            <Badge variant="outline" className="text-base px-3 py-1 bg-primary/10 border-primary/30 text-primary font-mono">
-                              {typeof selectedGate.outputState === 'string' ? selectedGate.outputState : 'Complex State'}
-                            </Badge>
-                          </div>
-
-                          {/* Compute robust output vector for Bloch sphere */}
-                          {(() => {
-                            const quantumGate = {
-                              name: selectedGate.gate.name,
-                              qubits: selectedGate.qubits,
-                              parameters: selectedGate.gate.parameters,
-                              matrix: undefined
-                            } as QuantumGate;
-                            const inputStateString = ketStateToString(selectedGate.inputState?.value ? { notation: selectedGate.inputState.notation, value: selectedGate.inputState.value } : undefined);
-                            const outputState = computeGateOutputState(
-                              quantumGate,
-                              inputStateString,
-                              numQubits
-                            );
-
-                            let blochVector = { x: 0, y: 0, z: 0 }; // Default to mixed center for Entangled
-
-                            if (typeof outputState === 'string') {
-                              if (outputState === '|0⟩' || outputState === '|0>') blochVector = { x: 0, y: 0, z: 1 };
-                              else if (outputState === '|1⟩' || outputState === '|1>') blochVector = { x: 0, y: 0, z: -1 };
-                              else if (outputState === '|+⟩') blochVector = { x: 1, y: 0, z: 0 };
-                              else if (outputState === '|-⟩') blochVector = { x: -1, y: 0, z: 0 };
-                              else if (outputState === '|+i⟩') blochVector = { x: 0, y: 1, z: 0 };
-                              else if (outputState === '|-i⟩') blochVector = { x: 0, y: -1, z: 0 };
-                              else if (outputState.startsWith('[') && outputState.endsWith(']')) {
-                                try {
-                                  const vectorStr = outputState.slice(1, -1);
-                                  const amplitudes = vectorStr.split(',').map(s => parseFloat(s.trim()));
-                                  if (amplitudes.length === 2) {
-                                    const [a, b] = amplitudes;
-                                    blochVector = {
-                                      x: 2 * a * b,
-                                      y: 0,
-                                      z: a * a - b * b
-                                    };
-                                  }
-                                } catch (e) { }
-                              }
-                            }
-
-                            let highlightedAxis: 'x' | 'y' | 'z' | null = null;
-                            const gateName = selectedGate.gate.name;
-                            if (['X', 'RX', 'SQRTX'].includes(gateName)) highlightedAxis = 'x';
-                            else if (['Y', 'RY', 'SQRTY'].includes(gateName)) highlightedAxis = 'y';
-                            else if (['Z', 'RZ', 'SQRTZ', 'S', 'T', 'P'].includes(gateName)) highlightedAxis = 'z';
-
-                            return (
-                              <div className="h-64 w-full flex justify-center bg-gray-900/80 border border-border/30 rounded-lg p-3">
-                                <div className="relative w-full h-full flex items-center justify-center">
-                                  <BlochSphere3D
-                                    vector={blochVector}
-                                    size={300}
-                                    className="w-full h-full"
-                                    highlightedAxis={highlightedAxis}
-                                  />
-                                  <div className="absolute bottom-2 left-2 text-cyan-400 text-xs font-mono space-y-1 pointer-events-none bg-black/40 p-1 rounded backdrop-blur-sm">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-3 h-0.5 bg-cyan-400"></div>
-                                      <span>Output Vector</span>
-                                    </div>
-                                    {highlightedAxis && (
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-3 h-0.5 bg-yellow-400"></div>
-                                        <span>Rotation Axis ({highlightedAxis.toUpperCase()})</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })()}
+                      <div className="h-64 w-full flex justify-center bg-muted/20 border border-border/30 rounded-lg p-3">
+                        <div className="relative w-full h-full flex items-center justify-center">
+                          <BlochSphere3D
+                            vector={{ x: 0, y: 0, z: 0 }}
+                            size={300}
+                            className="w-full h-full"
+                          />
                         </div>
-                      )}
-
-                      {/* Gate Parameters */}
-                      {selectedGate.gate.parameters && (
-                        <div className="space-y-4">
-                          <h4 className="font-medium">Gate Parameters</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            {Object.entries(selectedGate.gate.parameters).map(([param, value]) => (
-                              <div key={param}>
-                                <label className="block text-sm font-medium mb-2 capitalize">{param}</label>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={value}
-                                  onChange={(e) => {
-                                    const newVal = parseFloat(e.target.value);
-                                    if (!isNaN(newVal)) {
-                                      setCircuitGates(prev => prev.map(gate =>
-                                        gate.id === selectedGateId
-                                          ? {
-                                            ...gate,
-                                            gate: {
-                                              ...gate.gate,
-                                              parameters: { ...gate.gate.parameters, [param]: newVal }
-                                            }
-                                          }
-                                          : gate
-                                      ));
-                                    }
-                                  }}
-                                  className="w-full"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Input State Configuration */}
-                      <div>
-                        <h4 className="font-medium mb-4">Input State Configuration</h4>
-                        <StateInputPanel
-                          onStateChange={handleInputStateChange}
-                          initialState={selectedGate.inputState ? {
-                            notation: selectedGate.inputState.notation,
-                            value: selectedGate.inputState.value
-                          } : undefined}
-                          title={`Modify Input (Affects this gate only)`}
-                          showBlochPreview={false} // Minimized to save space
-                          numQubits={numQubits}
-                          gateQubitCount={selectedGate.qubits.length}
-                        />
                       </div>
                     </div>
-                  );
-                })()}
-              </div>
-            </DialogContent>
-          </Dialog >
-        </div >
+                  )}
 
-        <div className="col-span-1 lg:col-span-5 mt-6">
-          <CircuitAnalysis
-            numQubits={numQubits}
-            circuitGates={circuitGates.map(g => ({
-              name: g.gate.name,
-              qubits: g.qubits,
-              parameters: g.gate.parameters
-            }))}
-            ketStates={initialKetStates}
-            ibmResults={currentJob?.results}
-            ibmStatus={currentJob?.status}
-            ibmTimeline={currentJob?.timeline}
-          />
-        </div>
+                  {/* Gate Parameters */}
+                  {selectedGate.gate.parameters && (
+                    <div className="space-y-4">
+                      <h4 className="font-medium">Gate Parameters</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        {Object.entries(selectedGate.gate.parameters).map(([param, value]) => (
+                          <div key={param}>
+                            <label className="block text-sm font-medium mb-2 capitalize">{param}</label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={value}
+                              onChange={(e) => {
+                                const newVal = parseFloat(e.target.value);
+                                if (!isNaN(newVal)) {
+                                  setCircuitGates(prev => prev.map(gate =>
+                                    gate.id === selectedGateId
+                                      ? {
+                                        ...gate,
+                                        gate: {
+                                          ...gate.gate,
+                                          parameters: { ...gate.gate.parameters, [param]: newVal }
+                                        }
+                                      }
+                                      : gate
+                                  ));
+                                }
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-        <IBMQuantumConnection
-          isOpen={isIBMDialogOpen}
-          onClose={() => setIsIBMDialogOpen(false)}
-        />
-      </div >
+                  {/* Input State Configuration */}
+                  <div>
+                    <h4 className="font-medium mb-4">Input State Configuration</h4>
+                    <StateInputPanel
+                      onStateChange={handleInputStateChange}
+                      initialState={selectedGate.inputState ? {
+                        notation: selectedGate.inputState.notation,
+                        value: selectedGate.inputState.value
+                      } : undefined}
+                      title={`Modify Input (Affects this gate only)`}
+                      showBlochPreview={false}
+                      numQubits={numQubits}
+                      gateQubitCount={selectedGate.qubits.length}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <IBMQuantumConnection
+        isOpen={isIBMDialogOpen}
+        onClose={() => setIsIBMDialogOpen(false)}
+      />
     </>
   );
 });

@@ -36,6 +36,15 @@ const CircuitAnalysis: React.FC<CircuitAnalysisProps> = ({ numQubits, circuitGat
     useEffect(() => {
         let active = true;
         const calculate = async () => {
+            // Safety Check: Avoid running full state vector simulation for large qubit counts
+            if (numQubits > 14) {
+                if (active) {
+                    setAnalyzedQubits([]);
+                    setIsCalculating(false);
+                }
+                return;
+            }
+
             setIsCalculating(true);
 
             try {
@@ -47,6 +56,9 @@ const CircuitAnalysis: React.FC<CircuitAnalysisProps> = ({ numQubits, circuitGat
                         parameters: g.parameters
                     } as QuantumGate))
                 };
+
+                // Yield to main thread to prevent UI blocking
+                await new Promise(resolve => setTimeout(resolve, 10));
 
                 const result = simulateCircuit(circuit);
 
@@ -123,7 +135,18 @@ const CircuitAnalysis: React.FC<CircuitAnalysisProps> = ({ numQubits, circuitGat
                         </div>
                     ))}
 
-                    {analyzedQubits.length === 0 && !isCalculating && (
+                    {numQubits > 14 && (
+                        <div className="col-span-full flex flex-col items-center justify-center p-8 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center">
+                            <Activity className="h-8 w-8 text-amber-500 mb-2" />
+                            <h3 className="text-lg font-semibold text-amber-500">Local Simulation Paused</h3>
+                            <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                                Real-time 3D analysis is disabled for {numQubits} qubits to preserve performance.
+                                Please use "Run on IBM" for large scale simulation.
+                            </p>
+                        </div>
+                    )}
+
+                    {analyzedQubits.length === 0 && !isCalculating && numQubits <= 14 && (
                         <div className="col-span-full text-center py-10 text-muted-foreground">
                             Build a circuit to see qubit states.
                         </div>
