@@ -28,7 +28,7 @@ class SymptomAnalyzer:
         self.symptom_columns = []
         self.disease_mapping = {}
         self.is_trained = False
-        self.dataset_url = "https://drive.google.com/file/d/1_R8DpWlMLdxOk7sgDl6iMTSo6sPQIWel/view?usp=drive_link"
+        self.dataset_url = os.getenv("SYMPTOM_DATASET_URL", "https://drive.google.com/file/d/1_R8DpWlMLdxOk7sgDl6iMTSo6sPQIWel/view?usp=drive_link")
         self.local_data_path = "covid_symptoms.csv"
         self.model_path = "symptom_model.joblib"
         
@@ -53,7 +53,7 @@ class SymptomAnalyzer:
                 return False
                 
             logger.info(f"Downloading dataset from Drive ID: {file_id}...")
-            gdown.download(self.dataset_url, self.local_data_path, quiet=False, fuzzy=True)
+            gdown.download(self.dataset_url, self.local_data_path, quiet=True, fuzzy=True)
             
             if os.path.exists(self.local_data_path):
                 logger.info("Dataset downloaded successfully.")

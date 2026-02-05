@@ -21,7 +21,7 @@ export const FloatingAI: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/ai/ask`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tutor/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -16,3 +16,5 @@ pillow
 gdown
 # Caching and job queue
 redis
+google-generativeai
+aiohttp

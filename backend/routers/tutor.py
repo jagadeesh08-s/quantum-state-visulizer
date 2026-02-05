@@ -6,6 +6,7 @@ import random
 
 from models import AIQuestionRequest, AIQuestionResponse
 from watsonx_service import watsonx_service
+from gemini_service import gemini_service
 from container import container
 
 router = APIRouter(
@@ -16,8 +17,10 @@ router = APIRouter(
 @router.post("/chat", response_model=AIQuestionResponse)
 async def chat_tutor(request: AIQuestionRequest):
     try:
-        # Check if watsonx is configured
-        if watsonx_service.api_key:
+        # Priority: Gemini AI -> WatsonX -> Simulation
+        if gemini_service.is_configured():
+            answer = await gemini_service.generate_response(request.question)
+        elif watsonx_service.api_key:
             # Placeholder for actual LLM call
             # In a real implementation: response = await watsonx_service.generate_text(request.question)
             answer = "WatsonX (Real): " + "Quantum superposition allows qubits to be in multiple states at once. (API Connected)"

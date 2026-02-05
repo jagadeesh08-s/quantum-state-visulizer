@@ -95,6 +95,7 @@ print(f"DEBUG: Loading ibm_service from: {ibm_service.__file__}")
 from quantum_advantage_platform import quantum_platform
 from ibm_cloud_auth import ibm_cloud_auth
 from watsonx_service import watsonx_service
+from gemini_service import gemini_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -139,7 +140,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
              print(f"DEBUG: SYMPTOM ANALYZER FAILED: {e}")
 
-    # asyncio.create_task(init_symptom_analyzer())
+    asyncio.create_task(init_symptom_analyzer())
 
     yield
 
@@ -1715,6 +1716,40 @@ async def analyze_patient(data: Dict[str, Any]):
             raise HTTPException(status_code=400, detail="patientData is required")
         
         result = medical_core.predict(patient_data)
+        
+        # Enhanced AI Narrative using Gemini
+        if result.get("is_valid") and gemini_service.is_configured():
+            try:
+                diagnosis = result.get("diagnosis", "Unknown")
+                prompt = f"""
+                Patient Analysis Results:
+                Diagnosis: {diagnosis}
+                Confidence: {result.get('confidence', 0)}
+                Clinical Features: {patient_data}
+                
+                Please provide:
+                1. A professional medical narrative explaining this finding based on the features.
+                2. A list of 3 specific, actionable recommendations for the patient/doctor.
+                
+                Format as valid JSON: {{ "narrative": "...", "recommendations": ["...", "...", "..."] }}
+                """
+                
+                ai_response = await gemini_service.generate_response(prompt, context="Medical AI Assistant")
+                
+                try:
+                    import json
+                    # Clean markdown code blocks
+                    clean_response = ai_response.replace('```json', '').replace('```', '').strip()
+                    ai_data = json.loads(clean_response)
+                    
+                    if "narrative" in ai_data:
+                        result["narrative"] = ai_data["narrative"]
+                    if "recommendations" in ai_data and isinstance(ai_data["recommendations"], list):
+                        result["recommendations"] = ai_data["recommendations"]
+                except:
+                    result["narrative"] = ai_response
+            except Exception as e:
+                print(f"Gemini Analysis Error: {e}")
         
         return {
             "success": True,

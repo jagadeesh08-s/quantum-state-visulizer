@@ -314,7 +314,30 @@ class QuantumMedicalClassifier:
              return {"status": "In Progress"}
 
         try:
-            # 1. Check for LOCAL_DATASET_PATH env var
+            # 1. Check for MEDICAL_DATASET_URL from Drive
+            drive_url = os.getenv("MEDICAL_DATASET_URL")
+            if df is None and drive_url:
+                print(f"Detected MEDICAL_DATASET_URL: {drive_url}")
+                try:
+                    df = download_csv_from_drive(drive_url)
+                    if df is not None:
+                        print(f"Successfully downloaded real dataset. Samples: {len(df)}")
+                        target_col = 'diagnosis'
+                        # Try to find a target column if diagnosis isn't there
+                        if 'diagnosis' not in df.columns:
+                             potential_targets = ['label', 'target', 'diagnosis', 'class', 'fracture', 'prognosis']
+                             for t in potential_targets:
+                                 if t in df.columns:
+                                     target_col = t
+                                     break
+                    else:
+                        print("Warning: download_csv_from_drive returned None.")
+                except Exception as e:
+                    print(f"CRITICAL ERROR in Drive Download: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            # 2. Check for LOCAL_DATASET_PATH env var
             local_path = os.getenv("LOCAL_DATASET_PATH")
             
             if df is None and local_path and os.path.exists(local_path):
@@ -372,8 +395,17 @@ class QuantumMedicalClassifier:
                         if target_col not in df.columns:
                             target_col = df.columns[-1]
                 else:
-                    df = self.load_default_dataset()
-                    target_col = 'diagnosis'
+                    print("CRITICAL: No real dataset found. Simulated fallback is DISABLED per user request.")
+                    # self.dataset = None # Already None
+                    self.is_trained = False
+                    if self.training_lock.locked():
+                        self.training_lock.release()
+                    return {"success": False, "error": "Medical dataset not found or download failed."}
+            
+            if df is None:
+                if self.training_lock.locked():
+                    self.training_lock.release()
+                return {"success": False, "error": "Dataset missing."}
             
             # Sanitization
             if target_col not in df.columns:
