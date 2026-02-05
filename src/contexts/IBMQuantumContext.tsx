@@ -18,10 +18,13 @@ interface IBMQuantumContextType {
     selectedBackend: string | null;
     isLoading: boolean;
     currentJob: any | null;
+    jobHistory: any[];
+    isHistoryLoading: boolean;
     login: (token: string) => Promise<void>;
     logout: () => void;
     setSelectedBackend: (id: string) => void;
     submitJob: (circuit: any, shots?: number) => Promise<void>;
+    fetchJobHistory: () => Promise<void>;
     runAdvantageStudy: (algorithmType: string, circuit: any) => Promise<void>;
     authenticateWatsonX: (apiKey: string) => Promise<boolean>;
     isWatsonXAuthenticated: boolean;
@@ -36,6 +39,8 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const [selectedBackend, setSelectedBackend] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [currentJob, setCurrentJob] = useState<any | null>(null);
+    const [jobHistory, setJobHistory] = useState<any[]>([]);
+    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
     const [isWatsonXAuthenticated, setIsWatsonXAuthenticated] = useState(false);
 
     // Function to select the best backend automatically
@@ -82,11 +87,12 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 setIsAuthenticated(true);
                 localStorage.setItem('ibm_token', t);
 
+                // Fetch job history on login
+                fetchJobHistory(t);
+
                 console.log('[IBM Quantum] 🔍 Fetching available backends...');
                 const backendResult = await getIBMBackends(t);
-
-                console.log('[IBM Quantum] 📥 Backends response:', backendResult);
-
+                // ... (rest of validateToken unchanged) ...
                 if (backendResult.success) {
                     const backendsList = backendResult.backends || [];
                     console.log(`[IBM Quantum] ✅ Found ${backendsList.length} backends`);
@@ -127,6 +133,24 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
     };
 
+    const fetchJobHistory = async (explicitToken?: string) => {
+        const useToken = explicitToken || token;
+        if (!useToken) return;
+
+        setIsHistoryLoading(true);
+        try {
+            const { getIBMJobHistory } = await import('@/services/quantumAPI');
+            const result = await getIBMJobHistory(useToken, 50);
+            if (result.success) {
+                setJobHistory(result.jobs || []);
+            }
+        } catch (error) {
+            console.error('[IBM Quantum] Failed to fetch job history:', error);
+        } finally {
+            setIsHistoryLoading(false);
+        }
+    };
+
     const login = async (t: string) => {
         setToken(t);
     };
@@ -135,6 +159,7 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setToken(null);
         setIsAuthenticated(false);
         setBackends([]);
+        setJobHistory([]);
         setSelectedBackend(null);
         localStorage.removeItem('ibm_token');
     };
@@ -176,6 +201,10 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
                 setCurrentJob({ jobId, status, timeline: initialTimeline });
                 toast.success(`Job submitted to IBM Quantum (ID: ${jobId.substring(0, 8)}...)`);
+
+                // Refresh history after submission
+                setTimeout(() => fetchJobHistory(), 1000);
+
                 startPolling(jobId, initialTimeline);
             } else {
                 console.error('[IBM Quantum] ❌ Job submission failed:', result.error);
@@ -235,6 +264,10 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     { status: 'DONE', label: 'Completed', timestamp: '', completed: false, active: false }
                 ];
                 setCurrentJob({ jobId: result.jobId, status: 'RUNNING', isStudy: true, timeline: initialTimeline });
+
+                // Refresh history
+                setTimeout(() => fetchJobHistory(), 1000);
+
                 if (result.jobId) startPolling(result.jobId, initialTimeline);
             } else {
                 toast.error(result.error || 'Failed to start study');
@@ -304,6 +337,9 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 if (status === 'DONE' || status === 'ERROR' || status === 'CANCELLED') {
                     clearInterval(interval);
 
+                    // Final history fetch
+                    fetchJobHistory();
+
                     if (status === 'DONE') {
                         const results = result.results;
                         console.log('[IBM Quantum] ✅ Job completed successfully!');
@@ -340,8 +376,10 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     return (
         <IBMQuantumContext.Provider value={{
-            token, isAuthenticated, backends, selectedBackend, isLoading, currentJob, isWatsonXAuthenticated,
-            login, logout, setSelectedBackend, submitJob, runAdvantageStudy, authenticateWatsonX
+            token, isAuthenticated, backends, selectedBackend, isLoading, currentJob,
+            jobHistory, isHistoryLoading, isWatsonXAuthenticated,
+            login, logout, setSelectedBackend, submitJob, fetchJobHistory,
+            runAdvantageStudy, authenticateWatsonX
         }}>
             {children}
         </IBMQuantumContext.Provider>

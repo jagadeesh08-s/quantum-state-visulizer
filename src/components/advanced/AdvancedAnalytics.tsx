@@ -28,7 +28,10 @@ import {
   Award,
   Star,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Circle
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, ScatterChart, Scatter } from 'recharts';
 import { useAnalytics } from '@/hooks/useAnalytics';
@@ -76,11 +79,12 @@ interface LearningAnalytics {
 // Real analytics data is now provided by the useAnalytics hook
 
 import { useIBMQuantum } from '@/contexts/IBMQuantumContext';
+import { getIBMJobResultsDownloadUrl } from '@/services/quantumAPI';
 
 export const AdvancedAnalytics: React.FC = () => {
   // @ts-ignore
   const { analyticsData, events, refreshAnalytics } = useAnalytics();
-  const { isAuthenticated } = useIBMQuantum();
+  const { isAuthenticated, token, jobHistory, isHistoryLoading, fetchJobHistory } = useIBMQuantum();
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const [selectedMetric, setSelectedMetric] = useState<string>('users');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -123,6 +127,12 @@ export const AdvancedAnalytics: React.FC = () => {
 
   const [usageData, setUsageData] = useState<any[]>([]);
   const [performanceTrends, setPerformanceTrends] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchJobHistory();
+    }
+  }, [isAuthenticated]); // Fetch history on mount/auth change
 
   useEffect(() => {
     if (!events.length) return;
@@ -229,10 +239,15 @@ export const AdvancedAnalytics: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
+            onClick={async () => {
               setIsRefreshing(true);
+              const promises: Promise<any>[] = [];
               // @ts-ignore
-              refreshAnalytics?.().finally(() => setIsRefreshing(false));
+              if (refreshAnalytics) promises.push(refreshAnalytics());
+              if (isAuthenticated) promises.push(fetchJobHistory());
+
+              await Promise.all(promises);
+              setIsRefreshing(false);
             }}
             disabled={isRefreshing}
           >
@@ -252,8 +267,12 @@ export const AdvancedAnalytics: React.FC = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Jobs Completed</p>
-                <p className="text-2xl font-bold">{systemData.quantumJobsProcessed.toLocaleString()}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  {isAuthenticated ? 'My Jobs Completed' : 'Total Jobs Completed'}
+                </p>
+                <p className="text-2xl font-bold">
+                  {isAuthenticated ? jobHistory.length.toLocaleString() : systemData.quantumJobsProcessed.toLocaleString()}
+                </p>
               </div>
               <Zap className="w-8 h-8 text-blue-500" />
             </div>
@@ -344,8 +363,8 @@ export const AdvancedAnalytics: React.FC = () => {
             Learning
           </TabsTrigger>
           <TabsTrigger value="insights" className="flex items-center gap-2">
-            <Target className="w-4 h-4" />
-            Insights
+            <Database className="w-4 h-4" />
+            Quantum Workloads
           </TabsTrigger>
         </TabsList>
 
@@ -714,110 +733,106 @@ export const AdvancedAnalytics: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Real-Time Insights</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Based on actual user interactions and system performance
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle className="text-xl font-bold">My recent workloads</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Complete history of your IBM Quantum jobs and simulations
                 </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isAuthenticated && (
-                  <Alert className="border-purple-500/20 bg-purple-500/5">
-                    <Database className="h-4 w-4 text-purple-400" />
-                    <AlertDescription>
-                      <span className="text-purple-300 font-semibold block mb-1">IBM Quantum Connection Active</span>
-                      You have submitted <strong>{ibmTotal} jobs</strong> to IBM Quantum backends,
-                      with <strong>{ibmCompleted} completed</strong> successfully.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {analyticsData ? (
-                  <>
-                    <Alert>
-                      <TrendingUp className="h-4 w-4" />
-                      <AlertDescription>
-                        <strong>{performanceData.totalUsers} total users</strong> have engaged with the platform,
-                        with {performanceData.activeUsers} active in the last 24 hours.
-                      </AlertDescription>
-                    </Alert>
-
-                    <Alert>
-                      <Award className="h-4 w-4" />
-                      <AlertDescription>
-                        <strong>Learning completion rate is {performanceData.completionRate.toFixed(1)}%</strong>,
-                        with {learningData.totalLearners} active learners and {learningData.completedTutorials} tutorials completed.
-                      </AlertDescription>
-                    </Alert>
-
-                    <Alert>
-                      <Activity className="h-4 w-4" />
-                      <AlertDescription>
-                        <strong>System uptime is {systemData.uptime.toFixed(1)}%</strong> with average job time of {systemData.averageJobTime.toFixed(1)} seconds
-                        and {systemData.quantumJobsProcessed.toLocaleString()} jobs processed.
-                      </AlertDescription>
-                    </Alert>
-
-                    {performanceData.popularFeatures.length > 0 && (
-                      <Alert>
-                        <Target className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Most popular feature: {performanceData.popularFeatures[0]?.name}</strong>
-                          with {performanceData.popularFeatures[0]?.usage} interactions, followed by {performanceData.popularFeatures[1]?.name}.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    <Alert className={performanceData.errorRate > 5 ? "border-red-500/20 bg-red-500/5" : "border-green-500/20 bg-green-500/5"}>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <strong>Error rate: {performanceData.errorRate.toFixed(1)}%</strong>
-                        {performanceData.errorRate > 5 ? " - Consider reviewing error handling" : " - System performing well"}
-                      </AlertDescription>
-                    </Alert>
-                  </>
-                ) : (
-                  <Alert>
-                    <Activity className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Collecting analytics data...</strong> Insights will appear as users interact with the platform.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recommendations</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="p-3 border border-blue-200 bg-blue-50 rounded-lg">
-                    <h4 className="font-semibold text-blue-800 mb-1">Optimize Popular Features</h4>
-                    <p className="text-sm text-blue-700">Focus development efforts on Circuit Builder and VQE Playground based on usage patterns.</p>
-                  </div>
-
-                  <div className="p-3 border border-green-200 bg-green-50 rounded-lg">
-                    <h4 className="font-semibold text-green-800 mb-1">Expand Educational Content</h4>
-                    <p className="text-sm text-green-700">Create more advanced tutorials for intermediate users to improve completion rates.</p>
-                  </div>
-
-                  <div className="p-3 border border-purple-200 bg-purple-50 rounded-lg">
-                    <h4 className="font-semibold text-purple-800 mb-1">Enhance Performance</h4>
-                    <p className="text-sm text-purple-700">Implement caching improvements to further reduce response times.</p>
-                  </div>
-
-                  <div className="p-3 border border-orange-200 bg-orange-50 rounded-lg">
-                    <h4 className="font-semibold text-orange-800 mb-1">Scale Infrastructure</h4>
-                    <p className="text-sm text-orange-700">Prepare for increased quantum job processing demands with additional compute resources.</p>
-                  </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!isAuthenticated ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                  <p>Connect to IBM Quantum to view your workloads.</p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              ) : jobHistory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                  <p>No recent workloads found.</p>
+                </div>
+              ) : (
+                <div className="relative w-full overflow-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-muted/50 text-muted-foreground font-medium border-b border-border/50">
+                      <tr>
+                        <th className="h-10 px-4 align-middle font-semibold">ID</th>
+                        <th className="h-10 px-4 align-middle font-semibold">Status</th>
+                        <th className="h-10 px-4 align-middle font-semibold">Instance</th>
+                        <th className="h-10 px-4 align-middle font-semibold flex items-center gap-1">
+                          Created <span className="text-[10px]">↓</span>
+                        </th>
+                        <th className="h-10 px-4 align-middle font-semibold">QPU</th>
+                        <th className="h-10 px-4 align-middle font-semibold">Usage</th>
+                        <th className="h-10 px-4 align-middle font-semibold text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {jobHistory.map((job) => (
+                        <tr key={job.jobId} className="hover:bg-muted/30 transition-colors group">
+                          <td className="p-4 align-middle font-mono text-muted-foreground group-hover:text-foreground transition-colors">
+                            {job.jobId.substring(0, 16)}...
+                          </td>
+                          <td className="p-4 align-middle">
+                            <div className="flex items-center gap-2">
+                              {job.status === 'DONE' ? (
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              ) : job.status === 'RUNNING' ? (
+                                <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                              ) : job.status === 'ERROR' ? (
+                                <AlertCircle className="w-4 h-4 text-red-500" />
+                              ) : (
+                                <Circle className="w-4 h-4 text-slate-400" />
+                              )}
+                              <span>
+                                {job.status === 'DONE' ? 'Completed' :
+                                  job.status === 'RUNNING' ? 'Running' :
+                                    job.status.charAt(0) + job.status.slice(1).toLowerCase()}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle text-muted-foreground">
+                            open-instance
+                          </td>
+                          <td className="p-4 align-middle text-muted-foreground">
+                            {new Date(job.created).toLocaleString('en-US', {
+                              month: 'numeric', day: 'numeric', year: '2-digit',
+                              hour: 'numeric', minute: 'numeric', hour12: true
+                            })}
+                          </td>
+                          <td className="p-4 align-middle">
+                            <span className="underline decoration-dotted underline-offset-2 text-muted-foreground hover:text-foreground cursor-help">
+                              {job.backend}
+                            </span>
+                          </td>
+                          <td className="p-4 align-middle text-muted-foreground">
+                            {job.status === 'DONE' ? '2s' : '-'}
+                          </td>
+                          <td className="p-4 align-middle text-right">
+                            {job.status === 'DONE' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-2 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
+                                onClick={() => {
+                                  if (token) {
+                                    window.open(getIBMJobResultsDownloadUrl(job.jobId, token), '_blank');
+                                  }
+                                }}
+                              >
+                                <Download className="w-4 h-4" />
+                                Results
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -845,6 +860,7 @@ export const AdvancedAnalytics: React.FC = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
       </Tabs>
     </div>
   );

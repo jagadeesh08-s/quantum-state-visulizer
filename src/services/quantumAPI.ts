@@ -185,6 +185,28 @@ export async function getIBMJobStatus(jobId: string, token: string): Promise<any
   }
 }
 
+export async function getIBMJobHistory(token: string, limit: number = 10): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ibm/jobs?token=${token}&limit=${limit}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('IBM Quantum job history error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get IBM Quantum job history'
+    };
+  }
+}
+
+export function getIBMJobResultsDownloadUrl(jobId: string, token: string): string {
+  return `${API_BASE_URL}/api/ibm/job/${jobId}/results/download?token=${token}`;
+}
+
 // Cache management functions
 export async function getCacheStats(): Promise<any> {
   try {

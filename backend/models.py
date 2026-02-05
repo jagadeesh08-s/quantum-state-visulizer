@@ -140,6 +140,12 @@ class IBMJobStatusResponse(BaseModel):
     results: Optional[Any] = None
     error: Optional[str] = None
 
+class IBMJobHistoryResponse(BaseModel):
+    """IBM Quantum job history response"""
+    success: bool
+    jobs: List[Dict[str, Any]] = []
+    error: Optional[str] = None
+
 
 class AIQuestionRequest(BaseModel):
     """AI question request"""

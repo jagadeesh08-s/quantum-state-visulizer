@@ -201,4 +201,49 @@ class IBMQuantumService:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def get_job_history(self, token: str, limit: int = 25):
+        """Retrieve the latest jobs from IBM Quantum"""
+        try:
+            if not token:
+                token = os.getenv("IBM_QUANTUM_TOKEN")
+            service = self.get_service(token)
+            
+            # Retrieve jobs from the service (limit increased)
+            jobs = service.jobs(limit=limit, desc=True)
+            
+            job_list = []
+            for job in jobs:
+                try:
+                    # Safe status conversion
+                    status = job.status()
+                    if hasattr(status, 'name'):
+                        status = status.name
+                    elif hasattr(status, 'value'):
+                        status = status.value
+                    
+                    # Safe backend name retrieval
+                    backend_name = "unknown"
+                    try:
+                        backend_name = job.backend().name
+                    except:
+                        # Fallback for older jobs where backend might not be directly accessible
+                        if hasattr(job, 'backend_name'):
+                            backend_name = job.backend_name
+
+                    job_list.append({
+                        "jobId": job.job_id(),
+                        "backend": backend_name,
+                        "status": str(status),
+                        "created": job.creation_date().isoformat() if hasattr(job.creation_date(), 'isoformat') else str(job.creation_date()),
+                        "type": "SamplerV2"
+                    })
+                except Exception as b_err:
+                    print(f"Error parsing job info: {b_err}")
+                    continue
+                    
+            return {"success": True, "jobs": job_list}
+        except Exception as e:
+            print(f"Error fetching job history: {traceback.format_exc()}")
+            return {"success": False, "error": str(e)}
+
 ibm_service_instance = IBMQuantumService()

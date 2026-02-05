@@ -46,7 +46,7 @@ from enhanced_error_handling import (
 from models import (
     QuantumExecutionRequest, QuantumExecutionResult, IBMConnectRequest,
     IBMConnectResponse, IBMBackendsResponse, IBMExecuteRequest,
-    IBMExecuteResponse, IBMJobStatusResponse, AIQuestionRequest,
+    IBMExecuteResponse, IBMJobStatusResponse, IBMJobHistoryResponse, AIQuestionRequest,
     AIQuestionResponse, CacheStatsResponse, HealthResponse,
     QuantumMLFeatureMapRequest, QuantumMLKernelRequest,
     QuantumMLVQCTrainRequest, QuantumMLVQCPredictRequest,
@@ -489,6 +489,48 @@ async def get_ibm_job(request: Request, job_id: str, token: str):
         print(f"[IBM] ❌ Job status error: {error_msg}")
         container.logger().error("ibm_job_status_error", job_id=job_id, error=error_msg)
         raise IBMQuantumError(f"Failed to get job status: {error_msg}", details={"job_id": job_id})
+
+@app.get("/api/ibm/jobs", response_model=IBMJobHistoryResponse)
+@limit_general_requests()
+async def get_ibm_jobs(request: Request, token: str, limit: int = 10):
+    """Get list of past IBM Quantum jobs"""
+    try:
+        print(f"[IBM] 🔍 Fetching job history for token: {token[:10]}...")
+        result = await ibm_service_instance.get_job_history(token, limit)
+        return IBMJobHistoryResponse(**result)
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[IBM] ❌ Job history error: {error_msg}")
+        container.logger().error("ibm_job_history_error", error=error_msg)
+        raise IBMQuantumError(f"Failed to get job history: {error_msg}")
+
+@app.get("/api/ibm/job/{job_id}/results/download")
+async def download_job_results(job_id: str, token: str):
+    """Download job results as a JSON file"""
+    try:
+        print(f"[IBM] 📥 Downloading results for job: {job_id}")
+        result = await ibm_service_instance.get_job_result(token, job_id)
+        
+        if not result.get("success") or result.get("status") != "DONE":
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Job results not ready or job failed"}
+            )
+            
+        from fastapi.responses import Response
+        import json
+        
+        content = json.dumps(result.get("results"), indent=2)
+        return Response(
+            content=content,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f"attachment; filename=job_{job_id}_results.json"
+            }
+        )
+    except Exception as e:
+        print(f"[IBM] ❌ Download error: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 # --- Quantum Advantage Research Platform Endpoints ---
 

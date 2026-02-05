@@ -1543,21 +1543,38 @@ qc.measure_all()
                           <Activity className="w-5 h-5" />
                           IBM Quantum Hardware Results
                         </CardTitle>
-                        {currentJob?.status && (
-                          <Badge variant="outline" className="border-indigo-500/50 text-indigo-400">
-                            {currentJob.status}
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {currentJob?.jobId && (
+                            <div className="flex flex-col items-end">
+                              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Job ID</span>
+                              <span className="text-xs font-mono text-indigo-300/80 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                {currentJob.jobId}
+                              </span>
+                            </div>
+                          )}
+                          {currentJob?.status && (
+                            <Badge variant="outline" className="border-indigo-500/50 text-indigo-400 h-7">
+                              {currentJob.status}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
                       {/* Timeline Section */}
                       {currentJob?.timeline && (
                         <div className="bg-slate-900/40 rounded-xl p-6 border border-white/5 shadow-inner mb-6">
-                          <h4 className="text-xs font-bold text-indigo-400/70 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                            <Clock className="w-3 h-3" />
-                            Status Timeline
-                          </h4>
+                          <div className="flex items-center justify-between mb-6">
+                            <h4 className="text-xs font-bold text-indigo-400/70 uppercase tracking-[0.2em] flex items-center gap-2">
+                              <Clock className="w-3 h-3" />
+                              Status Timeline
+                            </h4>
+                            {currentJob?.jobId && (
+                              <span className="text-xs font-mono text-indigo-300/80 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 shadow-sm">
+                                ID: {currentJob.jobId}
+                              </span>
+                            )}
+                          </div>
                           <div className="relative pl-8 space-y-8">
                             {/* Vertical Connecting Line */}
                             <div className="absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-indigo-500/50 via-purple-500/50 to-slate-700" />
