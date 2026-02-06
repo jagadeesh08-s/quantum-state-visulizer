@@ -369,9 +369,17 @@ async def ask_ollama_question(question: str) -> Optional[str]:
         return None
 
 async def ask_ai_question(question: str) -> str:
-    """Ask AI questions using free quantum knowledge base with optional Ollama support"""
+    """Ask AI questions using Gemini (if available), Ollama, or fallback to knowledge base"""
     try:
-        # First try Ollama if available (completely free, local AI)
+        # Avoid circular import
+        from gemini_service import gemini_service
+
+        # 1. Try Gemini AI if available
+        if gemini_service.is_configured():
+            print(f"DEBUG: Using Gemini AI for question: {question[:50]}...")
+            return await gemini_service.generate_response(question)
+
+        # 2. Try Ollama if available (completely free, local AI)
         ollama_response = await ask_ollama_question(question)
         if ollama_response:
             print(f"Ollama AI Response for: \"{question[:50]}...\"")

@@ -100,7 +100,7 @@ class SymptomAnalyzer:
         feature_cols = [c for c in df.columns if c != target_col]
         
         # Check if features are text-based (need encoding) or numeric
-        if df[feature_cols[0]].dtype == object:
+        if df[feature_cols].select_dtypes(include=['object']).shape[1] > 0:
              # Convert categorical text symptoms to One-Hot
              # Actually, creating a vocabulary of all unique symptoms across all columns
              # This handles the "Symptom_1, Symptom_2" format where order doesn't matter
