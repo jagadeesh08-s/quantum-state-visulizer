@@ -18,3 +18,8 @@ gdown
 redis
 google-generativeai
 aiohttp
+# Dependency injection and monitoring
+dependency-injector
+prometheus-client
+structlog
+sqlalchemy
