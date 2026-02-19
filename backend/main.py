@@ -142,6 +142,28 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(init_symptom_analyzer())
 
+    # Auto-connect to IBM Quantum if token is available (Background)
+    async def init_ibm_quantum():
+        print("DEBUG: IBM QUANTUM AUTO-CONNECT STARTED")
+        try:
+            ibm_token = os.getenv("IBM_QUANTUM_TOKEN")
+            if ibm_token:
+                print(f"DEBUG: IBM Token found: {ibm_token[:10]}...")
+                result = await ibm_service_instance.validate_token(ibm_token)
+                if result.get("success"):
+                    print(f"DEBUG: ✅ IBM QUANTUM CONNECTED - Hub: {result.get('hub', 'default')}")
+                    container.logger().info("ibm_quantum_auto_connected", hub=result.get('hub'))
+                else:
+                    print(f"DEBUG: ❌ IBM QUANTUM CONNECTION FAILED: {result.get('error')}")
+                    container.logger().warning("ibm_quantum_auto_connect_failed", error=result.get('error'))
+            else:
+                print("DEBUG: No IBM_QUANTUM_TOKEN found in environment")
+        except Exception as e:
+            print(f"DEBUG: IBM QUANTUM AUTO-CONNECT ERROR: {e}")
+            container.logger().warning("ibm_quantum_auto_connect_error", error=str(e))
+
+    asyncio.create_task(init_ibm_quantum())
+
     yield
 
     # Shutdown: Cleanup

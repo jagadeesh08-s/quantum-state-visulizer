@@ -429,7 +429,7 @@ const identifyQuantumStateFromBloch = (
 };
 
 export const simulateCircuitWithStates = (circuit: QuantumCircuit, initialState?: any, initialKetStates?: string[]): any => {
-  return simulateCircuit(circuit);
+  return simulateCircuit(circuit, initialState);
 };
 
 export { createInitialState };

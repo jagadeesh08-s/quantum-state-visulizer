@@ -64,10 +64,21 @@ export const IBMQuantumProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     useEffect(() => {
-        if (token) {
-            validateToken(token);
+        // Auto-connect logic: check localStorage first, then environment variable
+        const storedToken = localStorage.getItem('ibm_token');
+        const envToken = import.meta.env.VITE_IBM_QUANTUM_TOKEN;
+
+        if (storedToken) {
+            // Use stored token
+            console.log('[IBM Quantum] 🔄 Auto-connecting with stored token...');
+            validateToken(storedToken);
+        } else if (envToken) {
+            // Use environment variable token for auto-connect
+            console.log('[IBM Quantum] 🔄 Auto-connecting with environment token...');
+            setToken(envToken);
+            validateToken(envToken);
         }
-    }, [token]);
+    }, []);
 
     const validateToken = async (t: string) => {
         setIsLoading(true);

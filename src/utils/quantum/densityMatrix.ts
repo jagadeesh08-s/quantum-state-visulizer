@@ -260,11 +260,49 @@ export const partialTrace = (fullState: number[][] | ComplexMatrix, qubitToKeep:
     }
   }
 
-  // Calculate purity and Bloch vector
-  const purity = matrixTrace(reducedMatrix);
+  // Calculate purity: Tr(ρ²) for density matrices
+  // For pure states, purity = 1. For mixed states, purity < 1
+  let purity = 1;
+  try {
+    if (isComplexMatrix(reducedMatrix)) {
+      // Calculate ρ² for complex matrices
+      const rhoSquared: ComplexMatrix = [
+        [complex(0, 0), complex(0, 0)],
+        [complex(0, 0), complex(0, 0)]
+      ];
+      for (let i = 0; i < 2; i++) {
+        for (let j = 0; j < 2; j++) {
+          let sumReal = 0;
+          let sumImag = 0;
+          for (let k = 0; k < 2; k++) {
+            const a = (reducedMatrix as ComplexMatrix)[i][k];
+            const b = (reducedMatrix as ComplexMatrix)[k][j];
+            sumReal += a.real * b.real - a.imag * b.imag;
+            sumImag += a.real * b.imag + a.imag * b.real;
+          }
+          rhoSquared[i][j] = { real: sumReal, imag: sumImag };
+        }
+      }
+      purity = complexTrace(rhoSquared).real;
+    } else {
+      // Calculate ρ² for real matrices
+      const mat = reducedMatrix as number[][];
+      const rhoSquared = matrixMultiply(mat, mat);
+      purity = realTrace(rhoSquared);
+    }
+    purity = Math.max(0, Math.min(purity, 1));
+  } catch (e) {
+    purity = 1; // Default to pure state if calculation fails
+  }
+
   const blochVector = calculateBlochVector(reducedMatrix);
   const superposition = calculateSuperposition(reducedMatrix);
-  const entanglement = calculateEntanglement(reducedMatrix);
+
+  // Calculate entanglement based on purity
+  // For a single qubit in a multi-qubit system:
+  // - If purity < 1, the qubit is entangled with others
+  // - Entanglement measure: 1 - purity (ranges from 0 to 1)
+  const entanglement = numQubits > 1 ? Math.max(0, 1 - purity) : 0;
 
   let concurrence = 0;
   let vonNeumannEntropy = 0;
@@ -273,11 +311,18 @@ export const partialTrace = (fullState: number[][] | ComplexMatrix, qubitToKeep:
   let reducedRadius = 1;
 
   if (numQubits > 1) {
-    // simplified
-    const blochRadius = Math.sqrt(blochVector.x * blochVector.x + blochVector.y * blochVector.y + blochVector.z * blochVector.z);
+    // Calculate Bloch sphere radius (for mixed states, radius < 1)
+    const blochRadius = Math.sqrt(
+      blochVector.x * blochVector.x +
+      blochVector.y * blochVector.y +
+      blochVector.z * blochVector.z
+    );
     reducedRadius = Math.min(blochRadius, 1);
 
-    if (reducedRadius < 0.99) isEntangled = true;
+    // A qubit is entangled if its reduced state is mixed (purity < 1)
+    // Using a threshold to account for numerical errors
+    isEntangled = purity < 0.99;
+    witnessValue = 1 - purity;
   }
 
   return {

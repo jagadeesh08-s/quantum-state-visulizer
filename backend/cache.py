@@ -210,9 +210,9 @@ try:
     # Test connection
     redis_client.ping()
     cache_backend = RedisCache(redis_client, config.redis.ttl)
-    print("✅ Redis cache initialized successfully")
+    print("[OK] Redis cache initialized successfully")
 except Exception as e:
-    print(f"⚠️  Redis connection failed, falling back to memory cache: {e}")
+    print(f"[!] Redis connection failed, falling back to memory cache: {e}")
     cache_backend = MemoryCache(max_size=1000, default_ttl=config.redis.ttl)
 
 quantum_cache = QuantumCache(cache_backend)
