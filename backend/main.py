@@ -615,6 +615,82 @@ async def authenticate_ibm_cloud(request: IBMCloudAuthRequest):
     return {"success": False, "error": "IBM Cloud authentication failed"}
 
 
+# ============================================================================
+# Runtime Configuration Update Endpoint
+# Allows the frontend to push Gemini API Key / Google Drive URL without
+# requiring a backend server restart.
+# ============================================================================
+
+class RuntimeConfigRequest(BaseModel):
+    gemini_api_key: Optional[str] = None
+    google_drive_url: Optional[str] = None
+
+@app.post("/api/update-config")
+async def update_runtime_config(payload: RuntimeConfigRequest):
+    """
+    Hot-update optional service keys at runtime.
+    Accepts { gemini_api_key?, google_drive_url? } from the frontend.
+    """
+    updated: list[str] = []
+    errors: list[str] = []
+
+    # ── Gemini API Key ────────────────────────────────────────────────────────
+    if payload.gemini_api_key:
+        try:
+            import google.generativeai as genai
+            os.environ["GEMINI_API_KEY"] = payload.gemini_api_key
+            genai.configure(api_key=payload.gemini_api_key)
+            # Reinitialise the shared gemini_service instance in-place
+            gemini_service.api_key = payload.gemini_api_key
+            gemini_service.model = genai.GenerativeModel("gemini-2.5-flash")
+            updated.append("gemini_api_key")
+            print(f"[Config] ✅ Gemini API key updated at runtime")
+        except Exception as e:
+            errors.append(f"gemini: {str(e)}")
+            print(f"[Config] ❌ Gemini key update failed: {e}")
+
+    # ── Google Drive Dataset URL ──────────────────────────────────────────────
+    if payload.google_drive_url:
+        try:
+            os.environ["MEDICAL_DATASET_URL"] = payload.google_drive_url
+            updated.append("google_drive_url")
+            print(f"[Config] ✅ Medical dataset URL set: {payload.google_drive_url}")
+
+            # Trigger dataset reload in the background (train() is sync, run in executor)
+            async def _reload_dataset():
+                try:
+                    loop = asyncio.get_running_loop()
+                    print("[Config] 🔄 Reloading medical dataset from new Drive URL...")
+                    # medical_core.train(None) will pick up MEDICAL_DATASET_URL from os.environ
+                    result = await loop.run_in_executor(None, medical_core.train, None)
+                    if result and result.get("status") == "Success":
+                        print(f"[Config] ✅ Medical dataset reloaded ({result.get('sample_count', '?')} records)")
+                    else:
+                        err = result.get("error", "unknown") if result else "no result"
+                        print(f"[Config] ⚠️ Dataset reload issue: {err}")
+                except Exception as exc:
+                    print(f"[Config] ❌ Dataset reload error: {exc}")
+
+            asyncio.create_task(_reload_dataset())
+        except Exception as e:
+            errors.append(f"google_drive_url: {str(e)}")
+            print(f"[Config] ❌ Drive URL update failed: {e}")
+
+    if errors:
+        return {
+            "success": len(updated) > 0,
+            "updated": updated,
+            "errors": errors,
+            "message": f"Partially applied. Updated: {updated}. Errors: {errors}"
+        }
+
+    return {
+        "success": True,
+        "updated": updated,
+        "message": f"Configuration applied: {', '.join(updated) or 'nothing changed'}"
+    }
+
+
 # Keep existing endpoints for backward compat
 
 # Authentication error (REMOVED)

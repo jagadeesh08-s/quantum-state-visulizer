@@ -48,14 +48,13 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => (
       code({ node, className, children, ...props }) {
         const match = /language-(\w+)/.exec(className || '');
         const codeString = String(children).replace(/\n$/, '');
-        // Check if it's an inline code or block code
-        const isInline = !match && !codeString.includes('\n');
+        // In react-markdown v10, inline code has no language class and no newlines
+        const isBlock = Boolean(match) || codeString.includes('\n');
 
-        if (isInline) {
+        if (!isBlock) {
           return (
             <code
               className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-mono text-[0.85em] border border-cyan-500/20"
-              {...props}
             >
               {children}
             </code>
@@ -84,7 +83,6 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => (
                 borderRadius: 0,
                 background: '#1a1a2e',
               }}
-              {...props}
             >
               {codeString}
             </SyntaxHighlighter>
@@ -391,8 +389,8 @@ export const FloatingAI: React.FC = () => {
                     >
                       <div
                         className={`max-w-[92%] rounded-2xl px-4 py-3 ${msg.role === 'user'
-                            ? 'bg-gradient-to-r from-cyan-600/80 to-purple-600/80 text-white border border-cyan-500/20'
-                            : 'bg-white/[0.04] text-gray-200 border border-white/[0.06]'
+                          ? 'bg-gradient-to-r from-cyan-600/80 to-purple-600/80 text-white border border-cyan-500/20'
+                          : 'bg-white/[0.04] text-gray-200 border border-white/[0.06]'
                           }`}
                       >
                         {msg.role === 'user' ? (

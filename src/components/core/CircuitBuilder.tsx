@@ -11,7 +11,7 @@ import { QuantumGateBlock, QUANTUM_GATES, type GateProps } from './QuantumGate';
 import StateInputPanel from './StateInputPanel';
 import { KetState, KetStateParser, Complex } from '@/utils/quantum/ketState';
 import BlochSphere3D from './BlochSphere';
-import CircuitAnalysis from './CircuitAnalysis';
+
 import { simulateCircuit, computeGateOutputState } from '@/utils/quantum/quantumSimulation';
 import type { QuantumGate } from '@/utils/quantum/circuitOperations';
 import { toast } from 'sonner';
@@ -903,22 +903,7 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
             </CardContent>
           </Card>
 
-          {renderMode === '3D' && (
-            <div className="w-full mt-6">
-              <CircuitAnalysis
-                numQubits={numQubits}
-                circuitGates={circuitGates.map(g => ({
-                  name: g.gate.name,
-                  qubits: g.qubits,
-                  parameters: g.gate.parameters
-                }))}
-                ketStates={initialKetStates}
-                ibmResults={currentJob?.results}
-                ibmStatus={currentJob?.status}
-                ibmTimeline={currentJob?.timeline}
-              />
-            </div>
-          )}
+
         </div>
       </div>
 

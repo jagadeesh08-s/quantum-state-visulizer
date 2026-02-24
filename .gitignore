@@ -35,3 +35,10 @@ ENV/
 env.bak/
 venv.bak/
 .env
+.env.production
+.env.local
+backend/.env
+
+# Downloaded datasets
+backend/downloaded_data/
+backend/downloaded_dataset.csv

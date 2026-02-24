@@ -1,5 +1,6 @@
 import os
 import traceback
+import logging
 from typing import Dict, List, Any, Optional
 
 try:
@@ -13,8 +14,6 @@ from circuit_converter import json_to_quantum_circuit
 
 class IBMQuantumService:
     def __init__(self):
-        self.services: Dict[str, QiskitRuntimeService] = {}
-        self.service_configs: Dict[str, Dict[str, Any]] = {}
         self.services: Dict[str, QiskitRuntimeService] = {}
         self.service_configs: Dict[str, Dict[str, Any]] = {}
         self.token_map: Dict[str, Dict[str, str]] = {}  # Maps BearerToken -> {key: API Key, instance: CRN}
@@ -48,10 +47,19 @@ class IBMQuantumService:
             print(f"Initializing IBM Service: {token[:10]}... (Instance: {instance})")
             try:
                 if channel == "ibm_cloud" and instance:
-                    # Qiskit for Cloud requires the API Key, not the Bearer Token
+                    # IBM Cloud channel requires an instance (CRN format)
                     self.services[cache_key] = QiskitRuntimeService(channel="ibm_cloud", token=real_token, instance=instance)
                 else:
-                    self.services[cache_key] = QiskitRuntimeService(channel="ibm_quantum_platform", token=real_token)
+                    # ibm_quantum_platform does NOT accept an 'instance' parameter.
+                    # The "Instance was not set" message is an informational WARNING from IBM's SDK
+                    # indicating it will auto-select the best available free/open instance.
+                    # This is expected behaviour for the open/free plan and is not an error.
+                    logging.getLogger("qiskit_ibm_runtime").setLevel(logging.ERROR)  # suppress the INFO warning
+                    self.services[cache_key] = QiskitRuntimeService(
+                        channel="ibm_quantum_platform",
+                        token=real_token
+                    )
+                    logging.getLogger("qiskit_ibm_runtime").setLevel(logging.WARNING)  # restore
                 self.service_configs[token] = {"channel": channel, "instance": instance}
             except Exception as e:
                 print(f"Service creation failed: {e}")
