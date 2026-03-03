@@ -1,10 +1,17 @@
 import os
 import asyncio
+from dotenv import load_dotenv
 from qiskit_ibm_runtime import QiskitRuntimeService
 import traceback
 
+# Load environment variables from .env file
+load_dotenv()
+
 async def test_token():
-    token = "YOUR_IBM_QUANTUM_TOKEN_HERE"
+    token = os.getenv("IBM_QUANTUM_TOKEN")
+    if not token:
+        print("ERROR: IBM_QUANTUM_TOKEN not found in environment. Set it in your .env file.")
+        return
     print(f"Testing token: {token[:10]}...")
     try:
         service = QiskitRuntimeService(channel="ibm_quantum_platform", token=token)

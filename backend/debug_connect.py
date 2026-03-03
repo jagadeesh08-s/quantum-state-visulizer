@@ -1,8 +1,17 @@
+import os
 import requests
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 def test_connect():
     url = "http://localhost:3005/api/ibm/connect"
-    payload = {"token": "YOUR_IBM_QUANTUM_TOKEN_HERE"}
+    token = os.getenv("IBM_QUANTUM_TOKEN")
+    if not token:
+        print("ERROR: IBM_QUANTUM_TOKEN not found in environment. Set it in your .env file.")
+        return
+    payload = {"token": token}
     try:
         response = requests.post(url, json=payload)
         print(f"Status Code: {response.status_code}")
