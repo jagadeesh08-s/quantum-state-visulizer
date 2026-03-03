@@ -7,6 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node
 node_modules
 dist
 dist-ssr
@@ -31,6 +32,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 ENV/
 env.bak/
 venv.bak/
@@ -42,3 +44,46 @@ backend/.env
 # Downloaded datasets
 backend/downloaded_data/
 backend/downloaded_dataset.csv
+
+# SQLite / database files  (too large for GitHub)
+*.db
+*.sqlite
+*.sqlite3
+
+# Trained ML model files
+*.joblib
+*.pkl
+*.h5
+*.pt
+*.pth
+*.onnx
+
+# Large log files
+backend/backend.log
+backend/*.log
+backend.log
+
+# Python virtual environments inside backend
+backend/venv/
+backend/.venv/
+backend/node_modules/
+
+# Vite timestamp build artifacts
+*.timestamp-*.mjs
+
+# Build log files
+build_log_*.txt
+
+# Runtime / temp files
+backend/temp_status.json
+backend/probe_results/
+backend/analysis_result.txt
+backend/connection_test_result.txt
+backend/error_log.txt
+backend/error_traceback.log
+backend/server_log.txt
+backend/server_startup.log
+backend/startup_log.txt
+backend/debug_startup.log
+backend/api_debug.log
+backend/trace.log
