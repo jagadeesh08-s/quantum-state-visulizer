@@ -21,7 +21,8 @@ export const CompactAI: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/ai/ask`, {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3005';
+      const response = await fetch(`${baseUrl}/api/ai/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/components/general/ThemeProvider';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { TourProvider } from '@/contexts/TourContext';
+// Provides local simulator state (formerly IBM cloud integration)
 import { IBMQuantumProvider } from '@/contexts/IBMQuantumContext';
 import { TutorialProvider } from '@/contexts/TutorialContext';
 
@@ -36,7 +37,7 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
-    <ErrorBoundary>
+    <ErrorBoundary showDetails={true}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>

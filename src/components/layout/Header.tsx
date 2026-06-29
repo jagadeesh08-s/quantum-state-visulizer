@@ -17,19 +17,17 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = () => {
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
-    const { isAuthenticated: isIBMConnected, currentJob } = useIBMQuantum();
+    const { isAuthenticated: isSimulatorReady } = useIBMQuantum();
     const [isIBMModalOpen, setIsIBMModalOpen] = React.useState(false);
 
     return (
         <>
             <motion.header
-                className="relative z-50 border-b border-border/50 bg-gradient-to-r from-card/95 via-card/90 to-card/95 backdrop-blur-xl shadow-lg"
+                className="relative z-50 border-b border-border bg-card shadow-sm"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
             >
-                {/* Subtle background pattern */}
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-secondary/5 opacity-30" />
 
                 <div className="container mx-auto px-6 py-4">
                     <div className="flex items-center justify-between">
@@ -41,11 +39,10 @@ export const Header: React.FC<HeaderProps> = () => {
                                 <Button
                                     variant="ghost"
                                     onClick={() => navigate('/')}
-                                    className="group relative overflow-hidden rounded-xl px-4 py-3 transition-all duration-300 hover:bg-primary/20 hover:shadow-lg"
+                                    className="group relative overflow-hidden rounded-md px-4 py-2 transition-all duration-200 hover:bg-muted"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                    <Home className="w-5 h-5 mr-3 text-primary group-hover:text-primary-foreground transition-colors" />
-                                    <span className="font-medium text-foreground group-hover:text-primary-foreground transition-colors">
+                                    <Home className="w-5 h-5 mr-2 text-primary" />
+                                    <span className="font-medium text-foreground">
                                         Home
                                     </span>
                                 </Button>
@@ -53,13 +50,12 @@ export const Header: React.FC<HeaderProps> = () => {
 
                             <div className="flex items-center gap-4">
                                 <div className="relative">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-primary/20 via-primary/10 to-accent/20 rounded-2xl flex items-center justify-center border border-primary/20 shadow-lg backdrop-blur-sm">
+                                    <div className="w-10 h-10 bg-primary/10 rounded-md flex items-center justify-center border border-primary/20">
                                         <CircuitBoard className="w-6 h-6 text-primary" />
                                     </div>
-                                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full border-2 border-white dark:border-slate-800 shadow-sm" />
                                 </div>
-                                <div className="space-y-1">
-                                    <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                                <div className="space-y-0.5">
+                                    <h1 className="text-xl font-bold text-foreground">
                                         Quantum State Visualizer
                                     </h1>
                                     <p className="text-sm text-muted-foreground font-medium">
@@ -71,25 +67,18 @@ export const Header: React.FC<HeaderProps> = () => {
 
                         <div className="flex items-center gap-4">
 
-                            {/* IBM Quantum Status */}
+                            {/* Simulator Settings */}
                             <div className="hidden lg:flex items-center gap-3">
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setIsIBMModalOpen(true)}
-                                    className={`group relative overflow-hidden rounded-xl px-4 py-2 border transition-all duration-300 ${isIBMConnected
-                                        ? 'border-green-500/50 bg-green-500/10 hover:bg-green-500/20'
-                                        : 'border-muted/50 bg-muted/10 hover:bg-muted/20'
-                                        }`}
+                                    className="rounded-md px-4 py-2 border border-border hover:bg-muted transition-colors duration-200"
                                 >
-                                    <div className={`absolute inset-0 bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${isIBMConnected ? 'from-green-500/10 to-blue-500/10' : 'from-muted/10 to-muted/5'
-                                        }`} />
                                     <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${isIBMConnected ? 'bg-green-500' : 'bg-muted-foreground'
-                                            } ${currentJob?.status === 'RUNNING' || currentJob?.status === 'QUEUED' ? 'animate-pulse' : ''}`} />
-                                        <span className={`text-sm font-medium ${isIBMConnected ? 'text-green-700 dark:text-green-300' : 'text-muted-foreground'
-                                            }`}>
-                                            {isIBMConnected ? 'IBM Quantum' : 'Connect IBM'}
+                                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                                        <span className="text-sm font-medium text-foreground">
+                                            Simulator Settings
                                         </span>
                                     </div>
                                 </Button>

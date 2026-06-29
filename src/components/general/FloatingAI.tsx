@@ -216,7 +216,8 @@ export const FloatingAI: React.FC = () => {
     setError(null);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tutor/chat`, {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3005';
+      const res = await fetch(`${baseUrl}/tutor/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q }),

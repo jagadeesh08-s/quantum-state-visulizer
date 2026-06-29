@@ -5,6 +5,8 @@ Integrates Redis caching, DAG optimization, and job queue into the main applicat
 
 from typing import Dict, Any, Optional
 import logging
+import sys
+import numpy as np
 from redis_cache import get_cache
 from dag_optimizer import DAGOptimizer
 from job_queue import get_job_queue, JobPriority
@@ -140,13 +142,46 @@ class QuantumBackendIntegration:
     async def _handle_circuit_simulation(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Handler for circuit simulation jobs"""
         try:
-            # Import simulation logic (would be from your existing code)
-            # For now, return a mock result
+            from qiskit import QuantumCircuit
+            from qiskit_aer import AerSimulator
+            
+            qasm_str = self._transpile_circuit(data, "aer_simulator")
+            qc = QuantumCircuit.from_qasm_str(qasm_str)
+            
+            simulator = AerSimulator()
+            
+            # Save statevector before measurement
+            qc.save_statevector()
+            
+            # Run simulation
+            result = simulator.run(qc).result()
+            
+            # Get statevector
+            statevector = result.get_statevector()
+            
+            # Calculate probabilities
+            probabilities = statevector.probabilities().tolist()
+            
+            # Create measurement counts based on probabilities
+            counts = {}
+            num_qubits = qc.num_qubits
+            total_shots = 1000
+            for i, prob in enumerate(probabilities):
+                if prob > 0:
+                    binary_str = format(i, f'0{num_qubits}b')
+                    counts[binary_str] = int(prob * total_shots)
+                    
+            # Convert statevector to list of complex numbers for JSON serialization
+            state_vector_list = [{"real": np.real(c), "imag": np.imag(c)} for c in statevector.data] if 'numpy' in sys.modules else statevector.data.tolist() if hasattr(statevector.data, 'tolist') else [float(abs(c)) for c in statevector.data]
+            
+            # Simple conversion to floats if complex isn't supported easily by the frontend
+            simple_state_vector = [float(abs(c)) for c in statevector.data]
+            
             return {
                 "success": True,
-                "state_vector": [0.707, 0, 0, 0.707],  # Example
-                "probabilities": [0.5, 0, 0, 0.5],
-                "measurement_counts": {"00": 500, "11": 500}
+                "state_vector": simple_state_vector,
+                "probabilities": probabilities,
+                "measurement_counts": counts
             }
         except Exception as e:
             logger.error(f"Simulation failed: {e}")

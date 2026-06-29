@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, Suspense, lazy } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,11 +36,8 @@ import {
   LogIn,
   Atom,
   Network,
-  Brain,
-  Gamepad2,
-  MessageCircle,
+
   Target,
-  Activity,
 } from 'lucide-react';
 import Loading from '@/components/ui/loading';
 import { useTheme } from '@/components/general/ThemeProvider';
@@ -69,19 +66,13 @@ import { useIBMQuantum } from '@/contexts/IBMQuantumContext';
 import { IBMQuantumConnection } from '@/components/tools/IBMQuantumConnection';
 import StateVisualizer2D from '@/components/core/StateVisualizer2D';
 
-import { Suspense, lazy } from 'react';
 
 // Lazy load heavy components for better performance
 const VQEPlayground = lazy(() => import('@/components/advanced/VQEPlayground').then(module => ({ default: module.VQEPlayground })));
 const NoiseSimulator = lazy(() => import('@/components/advanced/NoiseSimulator').then(module => ({ default: module.NoiseSimulator })));
-const AITutor = lazy(() => import('@/components/advanced/AITutor').then(module => ({ default: module.AITutor })));
-const TutorialOverlay = lazy(() => import('@/components/advanced/TutorialOverlay').then(module => ({ default: module.TutorialOverlay })));
-const GamificationSystem = lazy(() => import('@/components/advanced/GamificationSystem').then(module => ({ default: module.GamificationSystem })));
-const AdvancedAnalytics = lazy(() => import('@/components/advanced/AdvancedAnalytics').then(module => ({ default: module.AdvancedAnalytics })));
-const QuantumMedicalImaging = lazy(() => import('@/components/advanced/QuantumMedicalImaging').then(module => ({ default: module.default })));
-const QuantumTeleportation = lazy(() => import('@/components/advanced/QuantumTeleportation'));
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useTutorial } from '@/contexts/TutorialContext';
+import { TutorialOverlay } from '@/components/advanced/TutorialOverlay';
 import { type QuantumState } from '@/utils/core/stateNotationConverter';
 import {
   simulateCircuit,
@@ -123,7 +114,7 @@ const Workspace: React.FC = () => {
   const [numQubits, setNumQubits] = useState(2);
   const [selectedExample, setSelectedExample] = useState<string>('');
   const [isSimulating, setIsSimulating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'circuit' | 'code' | 'applications' | 'visualization' | 'analytics' | 'vqe' | 'qml' | 'noise' | 'tutor' | 'gamify' | 'insights' | 'medical'>('circuit');
+  const [activeTab, setActiveTab] = useState<'circuit' | 'code' | 'applications' | 'visualization' | 'analytics' | 'vqe' | 'noise'>('circuit');
   const [syncDirection, setSyncDirection] = useState<'visual-to-code' | 'code-to-visual' | 'bidirectional'>('bidirectional');
   const [gateStates, setGateStates] = useState<{ [gateId: string]: { input: string; output: string } }>({});
   const [shouldAutoSimulate, setShouldAutoSimulate] = useState(false);
@@ -156,9 +147,9 @@ const Workspace: React.FC = () => {
   // Bloch Sphere Modal state
   const [isBlochModalOpen, setIsBlochModalOpen] = useState(false);
 
-  // IBM Quantum state
-  const { isAuthenticated: isIBMConnected, submitJob, currentJob } = useIBMQuantum();
-  const [isIBMConnectionModalOpen, setIsIBMConnectionModalOpen] = useState(false);
+  // Local Simulator state
+  const { isAuthenticated: isSimulatorReady, submitJob, currentJob } = useIBMQuantum();
+  const [isSimulatorSettingsOpen, setIsSimulatorSettingsOpen] = useState(false);
 
 
   const nearlyEqual = (a: number, b: number, tol = 1e-2) => Math.abs(a - b) <= tol;
@@ -446,8 +437,8 @@ qc = QuantumCircuit(${circuit.numQubits})
       return;
     }
 
-    if (!isIBMConnected) {
-      setIsIBMConnectionModalOpen(true);
+    if (!isSimulatorReady) {
+      setIsSimulatorSettingsOpen(true);
       return;
     }
 
@@ -608,170 +599,43 @@ qc = QuantumCircuit(${circuit.numQubits})
     <AppLayout>
       <Header />
 
-      {/* Professional Main Workspace with Glassmorphism */}
-      <div className="flex-1 relative overflow-hidden bg-gradient-hero">
+      {/* Clean Main Workspace */}
+      <div className="flex-1 relative overflow-auto bg-background/50">
         <Suspense fallback={null}>
           <TutorialOverlay />
         </Suspense>
-        {/* Animated background gradient orbs */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 -left-16 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/4 -right-16 w-96 h-96 bg-secondary/20 rounded-full blur-3xl animate-pulse delay-1000" />
-          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-accent/10 rounded-full blur-3xl animate-pulse delay-500" />
-        </div>
 
-        <div className="container mx-auto px-6 py-8 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            {/* Fully Transparent Glassmorphic main card */}
-            <div className="relative rounded-3xl overflow-hidden bg-transparent">
-              {/* Minimal glass hint - just shadow and blur */}
-              <div className="absolute inset-0 backdrop-blur-sm pointer-events-none" />
-
-              <div className="p-4 relative z-10">
-                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-4">
-                  {/* Professional Navigation with Glassmorphism */}
-                  <div className="relative">
-                    <TabsList className="bg-muted/40 backdrop-blur-xl border border-border/20 rounded-2xl p-1.5 h-auto flex flex-wrap gap-2 w-full justify-start shadow-sm">
-                      <TabsTrigger
-                        value="circuit"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-cyan-500/80 data-[state=active]:backdrop-blur-md data-[state=active]:shadow-[0_4px_20px_0_rgba(6,182,212,0.4)] data-[state=active]:scale-105 hover:bg-cyan-500/30 hover:backdrop-blur-md hover:shadow-lg hover:scale-105 bg-transparent data-[state=active]:border data-[state=active]:border-white/20"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-cyan-500/20 to-cyan-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-cyan-500/30 transition-colors backdrop-blur-sm">
-                          <Palette className="w-4 h-4 text-cyan-400 group-data-[state=active]:text-white" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-white font-medium">
-                          Circuit
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="code"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-purple-500/80 data-[state=active]:backdrop-blur-md data-[state=active]:shadow-[0_4px_20px_0_rgba(168,85,247,0.4)] data-[state=active]:scale-105 hover:bg-purple-500/30 hover:backdrop-blur-md hover:shadow-lg hover:scale-105 bg-transparent data-[state=active]:border data-[state=active]:border-white/20"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500/20 to-purple-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-purple-500/30 transition-colors backdrop-blur-sm">
-                          <Code className="w-4 h-4 text-purple-400 group-data-[state=active]:text-white" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-white font-medium">
-                          Code
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="applications"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-blue-500/80 data-[state=active]:backdrop-blur-md data-[state=active]:shadow-[0_4px_20px_0_rgba(59,130,246,0.4)] data-[state=active]:scale-105 hover:bg-blue-500/30 hover:backdrop-blur-md hover:shadow-lg hover:scale-105 bg-transparent data-[state=active]:border data-[state=active]:border-white/20"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500/20 to-blue-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-blue-500/30 transition-colors backdrop-blur-sm">
-                          <Shield className="w-4 h-4 text-blue-400 group-data-[state=active]:text-white" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-white font-medium">
-                          Apps
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="visualization"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-emerald-500/80 data-[state=active]:backdrop-blur-md data-[state=active]:shadow-[0_4px_20px_0_rgba(16,185,129,0.4)] data-[state=active]:scale-105 hover:bg-emerald-500/30 hover:backdrop-blur-md hover:shadow-lg hover:scale-105 bg-transparent data-[state=active]:border data-[state=active]:border-white/20"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-500/20 to-emerald-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-emerald-500/30 transition-colors backdrop-blur-sm">
-                          <BarChart3 className="w-4 h-4 text-emerald-400 group-data-[state=active]:text-white" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-white font-medium">
-                          Visualize
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="analytics"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-orange-500/80 data-[state=active]:backdrop-blur-md data-[state=active]:shadow-[0_4px_20px_0_rgba(249,115,22,0.4)] data-[state=active]:scale-105 hover:bg-orange-500/30 hover:backdrop-blur-md hover:shadow-lg hover:scale-105 bg-transparent data-[state=active]:border data-[state=active]:border-white/20"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-orange-500/20 to-orange-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-orange-500/30 transition-colors backdrop-blur-sm">
-                          <TrendingUp className="w-4 h-4 text-orange-400 group-data-[state=active]:text-white" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-white font-medium">
-                          Analytics
-                        </span>
-                      </TabsTrigger>
-                      {/* Add glassmorphic styling to remaining tabs */}
-                      <TabsTrigger
-                        value="vqe"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-indigo-500/80 data-[state=active]:backdrop-blur-md data-[state=active]:shadow-[0_4px_20px_0_rgba(99,102,241,0.4)] data-[state=active]:scale-105 hover:bg-indigo-500/30 hover:backdrop-blur-md hover:shadow-lg hover:scale-105 bg-transparent data-[state=active]:border data-[state=active]:border-white/20"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500/20 to-blue-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-blue-500/30 transition-colors">
-                          <Atom className="w-4 h-4 text-blue-500 group-data-[state=active]:text-blue-50" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-blue-50 font-medium">
-                          VQE
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="medical-imaging"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-teal-500 data-[state=active]:shadow-xl data-[state=active]:scale-105 hover:bg-teal-500/60 hover:shadow-lg hover:scale-105"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-teal-500/20 to-teal-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-teal-500/30 transition-colors">
-                          <Activity className="w-4 h-4 text-teal-500 group-data-[state=active]:text-teal-50" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-teal-50 font-medium">
-                          Medical
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="noise"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-red-500 data-[state=active]:shadow-xl data-[state=active]:scale-105 hover:bg-red-500/60 hover:shadow-lg hover:scale-105"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-red-500/20 to-red-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-red-500/30 transition-colors">
-                          <Shield className="w-4 h-4 text-red-500 group-data-[state=active]:text-red-50" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-red-50 font-medium">
-                          Noise
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="tutor"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-indigo-500 data-[state=active]:shadow-xl data-[state=active]:scale-105 hover:bg-indigo-500/60 hover:shadow-lg hover:scale-105"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-indigo-500/20 to-indigo-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-indigo-500/30 transition-colors">
-                          <MessageCircle className="w-4 h-4 text-indigo-500 group-data-[state=active]:text-indigo-50" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-indigo-50 font-medium">
-                          Tutor
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="gamify"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-yellow-500 data-[state=active]:shadow-xl data-[state=active]:scale-105 hover:bg-yellow-500/60 hover:shadow-lg hover:scale-105"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-yellow-500/20 to-yellow-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-yellow-500/30 transition-colors">
-                          <Gamepad2 className="w-4 h-4 text-yellow-500 group-data-[state=active]:text-yellow-50" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-yellow-50 font-medium">
-                          Quest
-                        </span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="insights"
-                        className="group relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 data-[state=active]:bg-cyan-500 data-[state=active]:shadow-xl data-[state=active]:scale-105 hover:bg-cyan-500/60 hover:shadow-lg hover:scale-105"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-cyan-500/20 to-cyan-500/20 rounded-lg flex items-center justify-center group-data-[state=active]:bg-cyan-500/30 transition-colors">
-                          <BarChart3 className="w-4 h-4 text-cyan-500 group-data-[state=active]:text-cyan-50" />
-                        </div>
-                        <span className="text-muted-foreground group-data-[state=active]:text-cyan-50 font-medium">
-                          Insights
-                        </span>
-                      </TabsTrigger>
-
-                    </TabsList>
-
-                    {/* Active Tab Glow Effect */}
-                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-primary/50 via-accent to-secondary/50 rounded-full blur-sm opacity-60" />
-                  </div>
+        <div className="w-full h-full px-6 py-6 relative z-10 flex flex-col">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex-1 flex flex-col">
+            {/* Floating Glass Tab Bar */}
+            <div className="flex justify-center mb-6 sticky top-4 z-50">
+              <TabsList className="glass-panel h-14 p-1.5 rounded-full flex gap-1 shadow-2xl shadow-primary/10">
+                {[
+                  { value: 'circuit', label: 'Circuit Builder', icon: <Palette className="w-4 h-4" /> },
+                  { value: 'code', label: 'Code Editor', icon: <Code className="w-4 h-4" /> },
+                  { value: 'visualization', label: 'Visualize', icon: <BarChart3 className="w-4 h-4" /> },
+                  { value: 'analytics', label: 'Analytics', icon: <TrendingUp className="w-4 h-4" /> },
+                  { value: 'vqe', label: 'VQE Model', icon: <Atom className="w-4 h-4" /> },
+                  { value: 'noise', label: 'Noise Simulator', icon: <Zap className="w-4 h-4" /> },
+                  { value: 'applications', label: 'Quantum Apps', icon: <Shield className="w-4 h-4" /> },
+                ].map(tab => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-muted text-muted-foreground"
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
 
                   <TabsContent value="circuit" className="space-y-4 w-full">
                     <div className="w-full flex flex-col gap-6">
                       {/* Full Width Circuit Canvas Container */}
                       <div className="w-full space-y-4">
-                        <Card className="border border-border/40 bg-card/60 backdrop-blur-xl shadow-lg rounded-2xl overflow-hidden relative">
-                          {/* Glass reflection */}
-                          <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
+                        <Card className="solid-panel relative">
 
                           <CardContent className="p-4 relative">
                             <CircuitBuilder
@@ -818,7 +682,7 @@ qc = QuantumCircuit(${circuit.numQubits})
                                 isSimulating ||
                                 !currentCircuit
                               }
-                              className="w-full h-12 bg-cyan-500 hover:bg-cyan-600 text-white border-0 rounded-xl"
+                              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground border-0 rounded-md"
                             >
                               {isSimulating ? (
                                 <div className="flex items-center gap-3">
@@ -838,7 +702,7 @@ qc = QuantumCircuit(${circuit.numQubits})
                             </Button>
                           </motion.div>
 
-                          <div className="flex items-center gap-4 px-5 py-2 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-inner">
+                          <div className="flex items-center gap-4 px-5 py-2 rounded-md border border-border bg-card shadow-sm">
                             <div className="flex flex-col">
                               <span className="text-[10px] uppercase tracking-widest text-white/40 font-black">Performance</span>
                               <span className="text-xs font-bold text-white/90">{isPerformanceMode ? 'Lite (Up to 30Q)' : 'Full Graphics'}</span>
@@ -847,53 +711,20 @@ qc = QuantumCircuit(${circuit.numQubits})
                               variant="ghost"
                               size="sm"
                               onClick={() => setIsPerformanceMode(!isPerformanceMode)}
-                              className={`h-9 w-16 rounded-full p-1.5 transition-all duration-300 relative ${isPerformanceMode ? 'bg-cyan-500/20' : 'bg-white/5'}`}
+                              className={`h-9 w-16 rounded-full p-1.5 transition-all duration-200 relative ${isPerformanceMode ? 'bg-primary' : 'bg-muted'}`}
                             >
-                              <div className={`w-6 h-6 rounded-full shadow-lg transition-all duration-300 ${isPerformanceMode ? 'translate-x-3.5 bg-cyan-400' : '-translate-x-3.5 bg-white/40'}`} />
+                              <div className={`w-6 h-6 rounded-full shadow-sm transition-all duration-200 bg-background ${isPerformanceMode ? 'translate-x-3.5' : '-translate-x-3.5'}`} />
                             </Button>
                           </div>
                         </div>
 
-                        {isIBMConnected && (
-                          <motion.div
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            className="flex-1"
-                          >
-                            <Button
-                              variant="outline"
-                              onClick={handleIbmSimulation}
-                              disabled={
-                                !currentCircuit || currentJob?.status === 'running' || currentJob?.status === 'queued'
-                              }
-                              className="w-full h-10 bg-purple-500 hover:bg-purple-600 text-white border-0 disabled:opacity-50"
-                            >
-                              <div className="flex items-center gap-3">
-                                {currentJob?.status === 'running' || currentJob?.status === 'queued' ? (
-                                  <>
-                                    <div className="w-4 h-4 border border-current border-t-transparent rounded-full animate-spin" />
-                                    <span className="text-sm font-medium">
-                                      {currentJob?.status === 'running' ? 'Running...' : 'Queued...'}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Zap className="w-5 h-5" />
-                                    <span className="text-sm font-medium">
-                                      Run IBM Quantum
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            </Button>
-                          </motion.div>
-                        )}
+
 
                         <Button
                           variant="outline"
                           onClick={handleReset}
                           disabled={isSimulating}
-                          className="px-6 h-10 border-border text-muted-foreground hover:bg-muted hover:border-primary rounded-xl"
+                          className="px-6 h-10 border-border text-foreground hover:bg-muted rounded-md"
                         >
                           <RefreshCw className="w-4 h-4 mr-2" />
                           Reset
@@ -904,17 +735,14 @@ qc = QuantumCircuit(${circuit.numQubits})
                       <div className={`${layout.analysisColSpan} space-y-6 ${layout.orderReversed ? 'xl:order-1' : ''}`}>
                         {/* Enhanced Simulation Results Panel with Glassmorphism */}
                         {(simulationResult || ibmSimulationResult) && (
-                          <div className="border border-border/40 rounded-2xl overflow-hidden relative shadow-lg bg-card/40 backdrop-blur-md">
-                            {/* Glass shine effect */}
-                            <div className="absolute inset-0 backdrop-blur-md bg-transparent pointer-events-none" />
-                            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                          <div className="solid-panel relative">
 
                             <div className="relative p-4 border-b border-border/10">
                               <div className="text-sm font-semibold flex items-center gap-3 text-foreground">
-                                <div className="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.6)]" />
+                                <div className="w-2 h-2 bg-primary rounded-full" />
                                 Quantum Simulation Results
                                 {(simulationResult && ibmSimulationResult) && (
-                                  <Badge variant="outline" className="ml-auto text-xs border-primary/20 bg-primary/5 backdrop-blur-sm shadow-sm">
+                                    <Badge variant="outline" className="ml-auto text-xs bg-muted">
                                     Comparison Mode
                                   </Badge>
                                 )}
@@ -1231,12 +1059,51 @@ qc = QuantumCircuit(${circuit.numQubits})
                                       Technical Details
                                     </summary>
                                     <div className="mt-3 space-y-4">
-                                      <div>
-                                        <strong className="text-xs text-gray-300">Full Density Matrix:</strong>
-                                        <pre className="bg-gray-800/30 rounded p-2 text-xs overflow-x-auto mt-1 text-gray-300">
-                                          {simulationResult?.densityMatrix ? formatDensityMatrix(simulationResult.densityMatrix) : 'No Data'}
-                                        </pre>
-                                      </div>
+                                        <div>
+                                          <strong className="text-xs text-gray-300">Global Statevector:</strong>
+                                          <pre className="bg-gray-800/30 rounded p-2 text-xs overflow-x-auto mt-1 text-gray-300">
+                                            {(() => {
+                                              const matrix = simulationResult?.densityMatrix;
+                                              if (!matrix || !Array.isArray(matrix) || matrix.length === 0) return 'No Data';
+                                              const isComplex = matrix[0] && matrix[0][0] && typeof matrix[0][0] === 'object' && 'real' in (matrix[0][0] as any);
+                                              if (!isComplex) return 'No Data';
+
+                                              const dim = matrix.length;
+                                              let maxDiagIdx = 0;
+                                              let maxDiagVal = 0;
+                                              for (let i = 0; i < dim; i++) {
+                                                const val = Math.abs((matrix[i][i] as any).real);
+                                                if (val > maxDiagVal) {
+                                                  maxDiagVal = val;
+                                                  maxDiagIdx = i;
+                                                }
+                                              }
+
+                                              if (maxDiagVal < 1e-10) return 'No Data';
+                                              const psi_c = Math.sqrt(maxDiagVal);
+                                              const lines = [];
+                                              const numQubits = Math.round(Math.log2(dim));
+
+                                              for (let i = 0; i < dim; i++) {
+                                                const val = (matrix[i][maxDiagIdx] as any);
+                                                const real = val.real / psi_c;
+                                                const imag = val.imag / psi_c;
+                                                const prob = real * real + imag * imag;
+                                                if (prob > 1e-6) {
+                                                  const binaryState = i.toString(2).padStart(numQubits, '0');
+                                                  lines.push(`|${binaryState}⟩: ${real.toFixed(3)}${imag >= 0 ? '+' : ''}${imag.toFixed(3)}i  (Prob: ${(prob * 100).toFixed(1)}%)`);
+                                                }
+                                              }
+                                              return lines.length > 0 ? lines.join('\n') : 'No Data';
+                                            })()}
+                                          </pre>
+                                        </div>
+                                        <div>
+                                          <strong className="text-xs text-gray-300">Full Density Matrix:</strong>
+                                          <pre className="bg-gray-800/30 rounded p-2 text-xs overflow-x-auto mt-1 text-gray-300">
+                                            {simulationResult?.densityMatrix ? formatDensityMatrix(simulationResult.densityMatrix) : 'No Data'}
+                                          </pre>
+                                        </div>
                                       {reducedStates.length > 0 && (
                                         <div>
                                           <strong className="text-xs text-gray-300">Reduced Density Matrices:</strong>
@@ -1383,13 +1250,6 @@ qc = QuantumCircuit(${circuit.numQubits})
                     </Suspense>
                   </TabsContent>
 
-                  {/* Quantum Medical Imaging */}
-                  <TabsContent value="medical-imaging" className="space-y-6">
-                    <Suspense fallback={<Loading size="lg" />}>
-                      <QuantumMedicalImaging />
-                    </Suspense>
-                  </TabsContent>
-
                   {/* Noise Simulator */}
                   <TabsContent value="noise" className="space-y-6">
                     <Suspense fallback={<Loading size="lg" />}>
@@ -1397,30 +1257,8 @@ qc = QuantumCircuit(${circuit.numQubits})
                     </Suspense>
                   </TabsContent>
 
-                  {/* AI Tutor */}
-                  <TabsContent value="tutor" className="space-y-6">
-                    <Suspense fallback={<Loading size="lg" />}>
-                      <AITutor />
-                    </Suspense>
-                  </TabsContent>
 
-                  {/* Gamification System */}
-                  <TabsContent value="gamify" className="space-y-6">
-                    <Suspense fallback={<Loading size="lg" />}>
-                      <GamificationSystem />
-                    </Suspense>
-                  </TabsContent>
-
-                  {/* Advanced Analytics */}
-                  <TabsContent value="insights" className="space-y-6">
-                    <Suspense fallback={<Loading size="lg" />}>
-                      <AdvancedAnalytics />
-                    </Suspense>
-                  </TabsContent>
                 </Tabs>
-              </div>
-            </div>
-          </motion.div>
         </div>
       </div>
 
@@ -1450,8 +1288,8 @@ qc = QuantumCircuit(${circuit.numQubits})
       />
 
       <IBMQuantumConnection
-        isOpen={isIBMConnectionModalOpen}
-        onClose={() => setIsIBMConnectionModalOpen(false)}
+        isOpen={isSimulatorSettingsOpen}
+        onClose={() => setIsSimulatorSettingsOpen(false)}
       />
 
       <FloatingAI />

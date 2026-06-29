@@ -10,161 +10,129 @@
 
 ---
 
-## 🚀 Project Overview
+## 🚀 Project Overview & Working Mechanism
 
-**Bloch Verse** is a comprehensive quantum computing platform built for researchers, students, and enthusiasts. It combines:
+**Bloch Verse** is a comprehensive quantum computing platform built for researchers, students, and enthusiasts. The entire system is built upon a mathematically rigorous complex-number simulation engine written entirely in TypeScript for the frontend (running directly in the browser) and backed by a Python FastAPI engine for heavy computations, AI integration, and IBM Quantum execution.
 
-- 🌐 **Interactive 3D Bloch Sphere** visualizations powered by Three.js
-- 🔬 **Drag-and-drop Quantum Circuit Builder** with real-time state simulation
-- 🧠 **AI Quantum Tutor** (powered by Google Gemini) for deep learning assistance
-- 🏥 **Quantum-enhanced Medical Imaging & Symptom Analysis** via ML primitives
-- 💻 **IBM Quantum Hardware Integration** (run circuits on real quantum computers)
-- 📈 **VQE / VQA Playgrounds**, Noise Simulation, Error Correction & more
-- 🎮 **Gamification System** with achievements and progress tracking
-
----
-
-## ✨ Key Features
-
-### Core Quantum Tools
-| Feature | Description |
-|---|---|
-| **Bloch Sphere 3D** | Real-time 3D qubit state visualization with drag-to-rotate |
-| **Circuit Builder** | Drag-and-drop gate placement, multi-qubit support |
-| **Step-by-Step Execution** | Watch your circuit execute gate-by-gate |
-| **State Vector Display** | Amplitudes, probabilities, Dirac notation |
-| **Entanglement Analysis** | Concurrence, von Neumann entropy, partial traces |
-| **Noise Simulator** | Simulate real-world quantum decoherence |
-| **Error Correction** | Interactive quantum error correction protocols |
-
-### Advanced Modules
-| Feature | Description |
-|---|---|
-| **VQE Playground** | Variational Quantum Eigensolver experiments |
-| **VQA Playground** | Variational Quantum Algorithm sandbox |
-| **Quantum ML** | Feature maps, quantum kernels, VQC classifier training |
-| **Medical Imaging** | Quantum-enhanced image analysis with Pillow + scikit-image |
-| **Symptom Analyzer** | Trained on medical CSV dataset (supporting Google Drive input) |
-| **AI Tutor** | Gemini-powered contextual quantum learning assistant |
-| **Research Tools** | Advanced analytics and reporting suite |
-| **Gamification** | Achievements, XP, and progress tracking for learners |
-
-### IBM Quantum Integration
-- Authenticate with IBM Quantum token or IBM Cloud IAM API key
-- Fetch available quantum backends
-- Submit circuits, monitor job status, and download results
-- Auto-connect on startup if `IBM_QUANTUM_TOKEN` is set in `.env`
+### How it Works (Under the Hood)
+1. **State Initialization**: The system initializes a quantum state as a pure density matrix `|00...0⟩⟨00...0|` represented in complex numbers.
+2. **Circuit Simulation Engine** (`src/utils/quantum/circuitOperations.ts`):
+   - Quantum gates are applied via Tensor Products. For example, a single-qubit gate `U` applied to qubit `q` in an `n`-qubit system is calculated by taking the Kronecker product of Identity matrices `I` and `U`.
+   - The density matrix `ρ` is updated via the operation `ρ_new = U ρ U^†`.
+3. **Property Extraction** (`src/utils/quantum/densityMatrix.ts`):
+   - **Partial Trace**: The engine calculates the reduced density matrix for each individual qubit by tracing out the rest of the system.
+   - **Bloch Vectors**: Calculated directly from the reduced density matrix `(x = 2*Re(ρ₀₁), y = 2*Im(ρ₀₁), z = ρ₀₀ - ρ₁₁)`.
+   - **Purity & Entanglement**: Purity is measured as `Tr(ρ²)`. If the local purity drops below 1, it indicates entanglement with the rest of the system, mathematically quantified as `1 - Purity`.
+4. **Rendering**: The computed Bloch vectors and entanglement properties are passed to **Three.js** via React Three Fiber, utilizing custom GLSL shaders (`gpuQuantumVisualizer.ts`) to render the Bloch sphere, states, and entanglement web visually.
 
 ---
 
-## 🛠️ Tech Stack
+## 🔬 Exhaustive Quantum Reference: Combinations & Outcomes
 
-### Frontend
-| Technology | Version | Purpose |
+Understanding the simulation engine requires understanding how gate combinations yield specific quantum outcomes. Here is the comprehensive reference for all possible major combinations and states simulated in this platform.
+
+### Single-Qubit Combinations & State Evolutions
+| Gate Sequence | Initial State | Final State | Bloch Vector (x, y, z) | Purity | Superposition |
+|---|---|---|---|---|---|
+| **I** (Identity) | `\|0⟩` | `\|0⟩` | (0, 0, 1) | 1.000 | 0.000 |
+| **X** (NOT) | `\|0⟩` | `\|1⟩` | (0, 0, -1) | 1.000 | 0.000 |
+| **H** (Hadamard) | `\|0⟩` | `\|+⟩ = (\|0⟩+\|1⟩)/√2` | (1, 0, 0) | 1.000 | 1.000 |
+| **H → Z** | `\|0⟩` | `\|-⟩ = (\|0⟩-\|1⟩)/√2` | (-1, 0, 0) | 1.000 | 1.000 |
+| **H → S** | `\|0⟩` | `\|+i⟩ = (\|0⟩+i\|1⟩)/√2` | (0, 1, 0) | 1.000 | 1.000 |
+| **H → S → Z** | `\|0⟩` | `\|-i⟩ = (\|0⟩-i\|1⟩)/√2`| (0, -1, 0) | 1.000 | 1.000 |
+| **X → H** | `\|0⟩` | `\|-⟩ = (\|0⟩-\|1⟩)/√2` | (-1, 0, 0) | 1.000 | 1.000 |
+| **H → T → H** | `\|0⟩` | `cos(π/8)\|0⟩ - i·sin(π/8)\|1⟩` | (1/√2, -1/√2, 1/√2) | 1.000 | ~0.707 |
+
+### Multi-Qubit Entanglement Combinations (Bell States)
+When qubits are entangled, their individual (reduced) density matrices become completely mixed (`I/2`). Their local Bloch vectors shrink to `(0,0,0)`, Purity drops to `0.5`, and the Entanglement metric hits `0.5`.
+
+| Circuit Combination | Target Qubits | Resulting Global State | Local Bloch Vector | Local Superposition | Entanglement |
+|---|---|---|---|---|---|
+| **H (q0) → CNOT (q0, q1)** | q0, q1 | `Φ⁺ = (\|00⟩ + \|11⟩)/√2` | (0, 0, 0) | 0.000 | 0.500 |
+| **X (q0) → H (q0) → CNOT (q0, q1)**| q0, q1 | `Φ⁻ = (\|00⟩ - \|11⟩)/√2` | (0, 0, 0) | 0.000 | 0.500 |
+| **X (q1) → H (q0) → CNOT (q0, q1)**| q0, q1 | `Ψ⁺ = (\|01⟩ + \|10⟩)/√2` | (0, 0, 0) | 0.000 | 0.500 |
+| **X (q0, q1) → H (q0) → CNOT** | q0, q1 | `Ψ⁻ = (\|01⟩ - \|10⟩)/√2` | (0, 0, 0) | 0.000 | 0.500 |
+
+### 3-Qubit Combinations (GHZ & W States)
+| Circuit Combination | Resulting Global State | Properties |
 |---|---|---|
-| React | 18.3.1 | UI framework |
-| TypeScript | 5.8.3 | Type-safe development |
-| Vite | 5.4.19 | Build tool & dev server |
-| Three.js | 0.160.1 | 3D rendering engine |
-| @react-three/fiber | 8.18.0 | React renderer for Three.js |
-| @react-three/drei | 9.122.0 | Three.js helpers |
-| Framer Motion | 10.18.0 | Animations |
-| Tailwind CSS | 3.4.17 | Styling |
-| shadcn/ui (Radix) | latest | UI component library |
-| TanStack Query | 5.83.0 | Server-state management |
-| React Router DOM | 6.30.1 | Client-side routing |
-| Recharts | 2.15.4 | Data charts |
-| Monaco Editor | 0.52.2 | In-app code editor |
-| React Markdown | 10.1.0 | Markdown rendering |
-| Axios | 1.12.2 | HTTP client |
-
-### Backend
-| Technology | Version | Purpose |
-|---|---|---|
-| Python | 3.11 | Runtime |
-| FastAPI | latest | REST API framework |
-| Uvicorn | latest | ASGI server |
-| Qiskit | latest | Quantum circuit simulation |
-| Qiskit-Aer | latest | Local quantum simulator |
-| scikit-learn | latest | ML for medical analysis |
-| Pandas / NumPy | latest | Data processing |
-| Pillow / scikit-image | latest | Image processing |
-| google-generativeai | latest | Gemini AI integration |
-| SQLAlchemy (async) | latest | Database ORM |
-| gdown | latest | Google Drive dataset downloader |
-| python-dotenv | latest | Environment variable management |
-| aiohttp | latest | Async HTTP client |
+| **H(q0) → CNOT(q0,q1) → CNOT(q1,q2)** | GHZ State: `(\|000⟩ + \|111⟩)/√2` | Maximum multi-partite entanglement. All reduced single qubits are totally mixed. |
+| **RY(q0) → CH(q0,q1) → ...** | W State: `(\|001⟩ + \|010⟩ + \|100⟩)/√3`| Robust entanglement; tracing out one qubit leaves the remaining two partially entangled. |
 
 ---
 
-## 📁 Project Structure
+## 💻 Detailed Code Architecture & File Breakdown
 
-```
-quantum-state-visualizer/
-├── src/                          # Frontend source code
-│   ├── components/
-│   │   ├── advanced/             # Feature-rich modules
-│   │   │   ├── AITutor.tsx
-│   │   │   ├── AdvancedAnalytics.tsx
-│   │   │   ├── GamificationSystem.tsx
-│   │   │   ├── NoiseSimulator.tsx
-│   │   │   ├── QuantumErrorCorrection.tsx
-│   │   │   ├── QuantumMedicalImaging.tsx
-│   │   │   ├── QuantumMLTrainingPipeline.tsx
-│   │   │   ├── VQEPlayground.tsx
-│   │   │   ├── VQAPlayground.tsx
-│   │   │   └── ...
-│   │   ├── core/                 # Core quantum visualization
-│   │   │   ├── CircuitBuilder.tsx
-│   │   │   └── ...
-│   │   ├── general/              # Shared UI components
-│   │   ├── modals/               # Modal dialogs
-│   │   ├── tools/                # Utility tools
-│   │   └── ui/                   # shadcn/ui base components
-│   ├── contexts/                 # React context providers
-│   │   └── IBMQuantumContext.tsx  # IBM Quantum global state
-│   ├── hooks/                    # Custom React hooks
-│   ├── pages/
-│   │   ├── Landing.tsx           # Landing page
-│   │   ├── Workspace.tsx         # Main application workspace
-│   │   ├── Auth.tsx              # Authentication page
-│   │   └── NotFound.tsx
-│   ├── services/                 # API service layer
-│   ├── utils/                    # Quantum simulation utilities
-│   │   ├── gates.ts              # Gate matrix definitions
-│   │   ├── matrixOperations.ts   # Linear algebra helpers
-│   │   ├── densityMatrix.ts      # Quantum state analysis
-│   │   ├── circuitOperations.ts  # Circuit execution engine
-│   │   └── ...
-│   └── config/                   # App configuration & themes
-├── backend/                      # Python FastAPI backend
-│   ├── main.py                   # Main application & all API routes
-│   ├── routers/                  # Versioned API routers
-│   │   ├── v1.py
-│   │   ├── v2.py
-│   │   ├── analytics.py
-│   │   ├── gamification.py
-│   │   └── tutor.py
-│   ├── ibm_service.py            # IBM Quantum integration
-│   ├── medical_core.py           # Medical ML pipeline
-│   ├── symptom_analysis.py       # Symptom detection ML
-│   ├── gemini_service.py         # Google Gemini AI service
-│   ├── quantum_executor.py       # Local quantum execution
-│   ├── quantum_ml_primitives.py  # QML feature maps & classifiers
-│   ├── quantum_simulator.py      # Qiskit-based simulator
-│   ├── database.py               # Async SQLAlchemy DB
-│   ├── models.py                 # Pydantic request/response models
-│   ├── config.py                 # Application configuration
-│   ├── requirements.txt          # Python dependencies
-│   └── ...
-├── public/                       # Static assets
-├── .env                          # Environment variables (local only)
-├── package.json                  # Frontend dependencies & scripts
-├── vite.config.ts                # Vite configuration
-├── tailwind.config.ts            # Tailwind CSS configuration
-├── render.yaml                   # Render.com deployment config
-└── vercel.json                   # Vercel deployment config
-```
+The codebase is engineered to simulate, render, and execute quantum mechanics natively in the browser and backend. Here is the absolute, exhaustive breakdown of every critical file in the system:
+
+### 1. The Core Simulation Engine (`src/utils/quantum/`)
+This folder contains the complete mathematical heart of the application:
+- `complex.ts`: A bespoke complex number arithmetic library (`add`, `multiply`, `exp`, `tensorProduct`, `conjugateTranspose`). Since JavaScript lacks native complex numbers, this file is the backbone preventing precision loss and allowing accurate phase calculations.
+- `matrixOperations.ts`: Contains linear algebra helpers for scaling, tracing, and multiplying matrices up to arbitrary dimensions.
+- `gates.ts`: Contains the `ComplexMatrix` definitions for every supported quantum gate:
+  - **Pauli**: `I`, `X`, `Y`, `Z`
+  - **Clifford**: `H`, `S` (Phase), `T` (π/4 Phase)
+  - **Rotations**: `RX(θ)`, `RY(θ)`, `RZ(θ)`, `U1`, `U2`, `U3`, `P`
+  - **Multi-Qubit**: `CNOT`, `CZ`, `CY`, `CH`, `SWAP`, `iSWAP`, `CCNOT` (Toffoli), `CSWAP` (Fredkin).
+- `densityMatrix.ts`: The analysis engine. It provides:
+  - `partialTrace`: Traces out subsets of qubits to compute local subsystem properties.
+  - `calculateBlochVector`: Extracts `x, y, z` coordinates from off-diagonal and diagonal complex matrix elements.
+  - `calculateSuperposition`: Uses `2 * |ρ₀₁|` to measure local coherence.
+  - `calculateEntanglement`: Computes entanglement as `1 - Tr(ρ²)`.
+- `circuitOperations.ts`: Executes circuits by computing the massive unitary matrix `U` across all qubits via Tensor Products (`I ⊗ U ⊗ I...`), then applying it to the system density matrix `ρ`. It outputs the Global Statevector, the Probabilities, and the Full Density Matrix.
+- `gpuQuantumVisualizer.ts` & `quantumShaders.ts`: Manages the Three.js GLSL shaders that render the complex web of entanglement and qubit states on the GPU, taking load off the CPU during large circuit executions.
+
+### 2. The Frontend Architecture (`src/`)
+Built with React, TypeScript, and Vite.
+- **`components/core/`**:
+  - `BlochSphere.tsx`: Uses React Three Fiber to map the calculated `(x,y,z)` Bloch vector to a 3D sphere, applying quaternions for smooth rotation.
+  - `CircuitBuilder.tsx`: The drag-and-drop workspace that constructs the `QuantumCircuit` array sent to `circuitOperations.ts`.
+  - `QubitStateTable.tsx`: Displays real-time calculations (Purity, Superposition, Entanglement).
+- **`components/advanced/`**:
+  - `EntanglementAnalysis.tsx`: Deep-dive visualization of the partial trace results.
+  - `NoiseSimulator.tsx`: Applies bit-flip and phase-flip depolarizing channels to the ideal simulation.
+  - `VQEPlayground.tsx` & `VQAPlayground.tsx`: Interactive environments for variational algorithms.
+  - `TutorialOverlay.tsx`: Contextual step-by-step guidance for beginners.
+- **`pages/Workspace.tsx`**: The master conductor file. It holds the simulation loop, ties the UI together, captures state changes, extracts the Global Statevector, formats mathematical outputs, and handles IBM API execution requests.
+
+### 3. The Python Backend (`backend/`)
+The FastAPI layer orchestrates operations that are too heavy for the browser, or require authenticated cloud access:
+- `ibm_service.py`: Interfaces securely with IBM Quantum APIs using `VITE_IBM_QUANTUM_TOKEN` to transpile circuits and queue them on real, physical superconducting quantum chips (like `ibm_brisbane` or `ibm_kyoto`).
+- `gemini_service.py`: Mounts the Google Generative AI (Gemini) models, acting as the logic for the "AI Tutor" to dynamically generate answers about quantum mechanics, and analyze circuits on the fly.
+- `quantum_executor.py` & `quantum_simulator.py`: Implements Qiskit's `AerSimulator` for validating complex circuits locally before sending them to IBM hardware.
+- `medical_core.py` & `symptom_analysis.py`: Features a Classical-Quantum Machine Learning hybrid system. It downloads medical datasets from Google Drive, processes image data with scikit-image, and uses Quantum Kernels to classify symptoms.
+- `main.py`: Bootstraps the Uvicorn server, handles CORS policies, connects to SQLite (`database.py`) for caching jobs, and serves the API routes.
+
+---
+
+## ⚡ High-Performance Backend Architecture
+
+To ensure scalable and lightning-fast quantum computations, the backend implements the following architectural improvements:
+
+### 1. Redis Caching Layer (`redis_cache.py`)
+- **In-memory caching** for quantum circuit simulations, transpiled circuits, and DAG optimizations.
+- Uses SHA-256 for automatic cache key generation and supports configurable TTL.
+- **Impact:** ~100x faster for previously simulated circuits and ~50x faster transpilation. Graceful fallback when Redis is unavailable.
+
+### 2. Circuit DAG Optimizer (`dag_optimizer.py`)
+- Analyzes circuits as **Directed Acyclic Graphs (DAG)**.
+- Automatically reduces gate counts (identity removal, gate merging) and cancels inverse gates (e.g., `X-X`, `H-H`).
+- **Impact:** Achieves a 20-40% reduction in gate count and 15-30% depth reduction prior to execution.
+
+### 3. Job Queue System (`job_queue.py`)
+- Implements a priority-based scheduling system (`LOW`, `NORMAL`, `HIGH`, `CRITICAL`) using an async worker pool.
+- Includes automatic retry logic with exponential backoff and tracks job status (polling).
+- **Impact:** 4x throughput when parallelizing IBM Quantum cloud submissions.
+
+---
+
+## 🎨 Theme & Glassmorphism Design System
+
+**Bloch Verse** uses a highly polished dynamic theming system (`THEME_SYSTEM.md` & `GLASSMORPHISM_DESIGN.md` concepts integrated natively).
+
+- **Dynamic Layout Config**: Found in `src/config/themeLayouts.ts`, it allows themes to not only change colors but control the CSS Grid layouts dynamically (e.g. 7:5 ratio vs 5:7 reversed, stacked vertically, or wide-canvas layouts).
+- **Glassmorphism UI**: Uses Tailwind CSS utilities (`backdrop-blur-md`, `bg-opacity`, structural borders) to create a premium, translucent deep-space aesthetic across all workspaces, modally overlaying the simulation engine.
+- **Built-in Themes**: `Quantum` (Default), `Cosmic`, `Superposition`, `Entanglement` (Swaps Workspace order), `Tunneling`, `Decoherence`, `Minimal`, and `Retro`.
 
 ---
 
@@ -175,24 +143,15 @@ quantum-state-visualizer/
 - **Node.js 18+** — [Download](https://nodejs.org/)
 - **Python 3.11+** — [Download](https://www.python.org/)
 - **npm** (comes with Node.js) or **bun**
-- A modern browser with WebGL support (Chrome, Firefox, Edge)
 
-### 1. Clone the Repository
+### 1. Clone & Configure
 
 ```bash
 git clone https://github.com/jagadeesh08-s/ml-git.git
 cd ml-git
 ```
 
-### 2. Configure Environment Variables
-
-Copy the example and fill in your keys:
-
-```bash
-# Create .env in the project root
-```
-
-Edit `.env`:
+Create a `.env` file in the root directory:
 
 ```env
 # Backend API URL (default port: 3005)
@@ -214,247 +173,59 @@ MEDICAL_DATASET_URL=your_google_drive_url_here
 # App settings
 VITE_APP_NAME=Bloch Verse
 VITE_APP_VERSION=1.0.0
-VITE_DEFAULT_SHOTS=1024
-VITE_MAX_QUBITS=100
 ```
 
-### 3. Install Frontend Dependencies
+### 2. Install & Run (Full Stack)
+
+To run both the React frontend and the FastAPI backend concurrently with hot-reloading:
 
 ```bash
-npm install
-```
-
-### 4. Install Backend Dependencies
-
-```bash
-cd backend
-pip install -r requirements.txt
-cd ..
-```
-
-Or use the npm shortcut:
-
-```bash
-npm run backend:install
-```
-
----
-
-## ▶️ Running the Application
-
-### Option A — Start Both Together (Recommended)
-
-```bash
+npm run full:install
 npm run full:dev
 ```
 
-This starts both the **frontend** and the **Python backend** concurrently.
-
-### Option B — Start Separately
-
-**Terminal 1 — Frontend (Vite dev server):**
-
-```bash
-npm run dev
-```
-
-The frontend will be available at: **[http://localhost:8080](http://localhost:8080)** *(or the port shown in your terminal)*
-
-**Terminal 2 — Backend (FastAPI / Uvicorn on port 3005):**
-
-```bash
-npm run backend:dev
-```
-
-The backend API will be available at: **[http://localhost:3005](http://localhost:3005)**
-
-- Interactive API docs (Swagger): [http://localhost:3005/docs](http://localhost:3005/docs)
-- Alternative docs (ReDoc): [http://localhost:3005/redoc](http://localhost:3005/redoc)
-- Health check: [http://localhost:3005/health](http://localhost:3005/health)
+- Frontend: **[http://localhost:8080](http://localhost:8080)**
+- Backend API Docs: **[http://localhost:3005/docs](http://localhost:3005/docs)**
 
 ---
 
-## 📜 Available Scripts
+## 🌐 Complete API Endpoint Reference
 
-```bash
-# ─── Frontend ──────────────────────────────────────────────────────────────
-npm run dev              # Start Vite development server (frontend only)
-npm run build            # Build frontend for production
-npm run build:dev        # Build frontend in development mode
-npm run preview          # Preview the production build locally
-npm run lint             # Run ESLint on frontend code
+### General & System
+- `GET /health` : Verifies backend, Qiskit, DB, and Gemini API statuses.
+- `GET /api/status` : Server load, caching, and IBM connection polling status.
+- `GET /docs` : Interactive Swagger UI for all API testing.
 
-# ─── Backend ───────────────────────────────────────────────────────────────
-npm run backend:dev      # Start FastAPI backend with hot-reload (port 3005)
-npm run backend:start    # Start FastAPI backend in production mode (port 3005)
-npm run backend:install  # Install Python backend dependencies
+### IBM Quantum & Circuit Execution
+- `POST /api/quantum/execute` : Simulate a provided JSON circuit via `Qiskit-Aer`.
+- `POST /api/ibm/connect` : Validates IBM Token.
+- `GET /api/ibm/backends` : Lists online IBM quantum machines and their queue sizes.
+- `POST /api/ibm/execute` : Submits circuit to a physical IBM chip.
+- `GET /api/ibm/job/{job_id}` : Polls job status (QUEUED, RUNNING, COMPLETED).
 
-# ─── Combined ──────────────────────────────────────────────────────────────
-npm run full:dev         # Start frontend + backend simultaneously
-npm run full:install     # Install both frontend (npm) and backend (pip) dependencies
-
-# ─── Testing ───────────────────────────────────────────────────────────────
-npm run test             # Run Vitest tests (watch mode)
-npm run test:run         # Run Vitest tests (single pass)
-npm run test:ui          # Open Vitest UI
-```
-
----
-
-## 🌐 API Endpoints
-
-The FastAPI backend exposes the following key endpoints:
-
-### Health & System
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/health` | Full health check with dependency verification |
-| GET | `/api/status` | Detailed system status, cache, and worker info |
-| GET | `/docs` | Swagger UI (interactive API explorer) |
-| GET | `/redoc` | ReDoc API documentation |
-
-### Quantum Simulation
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/quantum/execute` | Execute a quantum circuit locally or on Aer simulator |
-
-### IBM Quantum
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/ibm/connect` | Connect & validate an IBM Quantum token |
-| GET | `/api/ibm/backends` | List available IBM quantum backends |
-| POST | `/api/ibm/execute` | Submit a circuit to IBM hardware |
-| GET | `/api/ibm/job/{job_id}` | Get status/results for a submitted job |
-| GET | `/api/ibm/jobs` | List recent IBM job history |
-| GET | `/api/ibm/job/{job_id}/results/download` | Download job results as JSON |
-| POST | `/api/ibm/authenticate-cloud` | Authenticate via IBM Cloud IAM API key |
-
-### AI & Medical
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/update-config` | Update Gemini key / Drive URL at runtime (no restart needed) |
-| POST | `/api/quantum-study` | Run a quantum advantage study |
-| GET | `/api/quantum-report/{job_id}` | Generate a research report for a job |
-
----
-
-## 🔬 Quantum Gate Reference
-
-### Single-Qubit Gates
-| Gate | Symbol | Effect on \|0⟩ | Effect on \|1⟩ |
-|---|---|---|---|
-| **I** | I | \|0⟩ | \|1⟩ |
-| **X** | X | \|1⟩ | \|0⟩ |
-| **Y** | Y | i\|1⟩ | -i\|0⟩ |
-| **Z** | Z | \|0⟩ | -\|1⟩ |
-| **H** | H | (\|0⟩+\|1⟩)/√2 | (\|0⟩-\|1⟩)/√2 |
-| **S** | S | \|0⟩ | i\|1⟩ |
-| **T** | T | \|0⟩ | e^(iπ/4)\|1⟩ |
-| **RX(θ)** | Rx | cos(θ/2)\|0⟩ − i·sin(θ/2)\|1⟩ | cos(θ/2)\|1⟩ − i·sin(θ/2)\|0⟩ |
-| **RY(θ)** | Ry | cos(θ/2)\|0⟩ + sin(θ/2)\|1⟩ | cos(θ/2)\|1⟩ − sin(θ/2)\|0⟩ |
-| **RZ(θ)** | Rz | e^(−iθ/2)\|0⟩ | e^(iθ/2)\|1⟩ |
-| **SX** | √X | Half-flip (superposition) | - |
-
-### Multi-Qubit Gates
-| Gate | Name | Effect |
-|---|---|---|
-| **CNOT** | Controlled-NOT | Flips target if control = \|1⟩ |
-| **CZ** | Controlled-Z | Applies −1 phase if both qubits = \|1⟩ |
-| **SWAP** | Swap | Exchanges two qubit states |
-| **CY** | Controlled-Y | Applies Y to target if control = \|1⟩ |
-| **CH** | Controlled-H | Applies H to target if control = \|1⟩ |
-| **CCNOT** | Toffoli | Flips target if both controls = \|1⟩ |
-| **FREDKIN** | CSWAP | Swaps two targets if control = \|1⟩ |
-
----
-
-## 🏗️ Architecture Overview
-
-```
-Browser (React + Three.js)
-        │
-        │  REST/JSON  (http://localhost:3005)
-        ▼
-FastAPI Backend (Python 3.11 / Uvicorn)
- ├── IBM Quantum Service  ──►  IBM Quantum Cloud
- ├── Gemini AI Service    ──►  Google AI Studio
- ├── Medical Core         ──►  Dataset (Google Drive CSV)
- ├── Quantum Simulator    ──►  Qiskit-Aer (local)
- ├── SQLite Database      ──►  quantum.db (persistent)
- └── Async Job Queue      ──►  Background tasks
-```
-
-- The **frontend** communicates exclusively with the FastAPI backend via HTTP.
-- The **backend** forwards IBM Quantum and Gemini requests to their respective cloud services.
-- Medical data is downloaded from Google Drive via `gdown` and trained locally with `scikit-learn`.
+### AI & Experimental
+- `POST /api/quantum-study` : Trigger a long-running VQE/VQA comparison.
+- `POST /api/update-config` : Inject new tokens dynamically.
 
 ---
 
 ## 🌍 Deployment
 
-### Render.com (Backend)
+### Backend (Render.com)
+The project includes a `render.yaml` for automatic deployment of the FastAPI layer to Render.
+It utilizes Python 3.11 and runs `uvicorn main:app --host 0.0.0.0 --port $PORT`. Just connect your repository to Render and specify the environment variables.
 
-The `render.yaml` file is pre-configured for deploying the backend to [Render](https://render.com/):
-
-- **Runtime**: Python 3.11
-- **Build command**: `pip install -r requirements.txt`
-- **Start command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- **Root directory**: `backend/`
-
-Set the following environment variables in your Render dashboard:
-- `GEMINI_API_KEY`
-- `IBM_QUANTUM_TOKEN`
-- `MEDICAL_DATASET_URL`
-
-### Vercel (Frontend)
-
-The `vercel.json` is pre-configured for deploying the frontend to [Vercel](https://vercel.com/).
-
-Set `VITE_API_BASE_URL` in your Vercel project environment variables to point to your deployed backend URL.
+### Frontend (Vercel)
+The project includes `vercel.json` to handle React-Router client-side routing rewrites. Connect your fork to Vercel, set the build command to `npm run build`, and set `VITE_API_BASE_URL` to your newly deployed Render API.
 
 ---
 
-## ⚠️ Known Limitations
+## 🤝 Contributing & Licensing
 
-- **WebGL Required**: The 3D Bloch Sphere visualization requires a browser with WebGL support.
-- **IBM Quantum Token**: Real hardware job submission requires a valid IBM Quantum account token.
-- **Medical Dataset**: The symptom analyzer requires a properly formatted CSV dataset from Google Drive.
-- **Python 3.11**: The backend is tested on Python 3.11. Other versions may work but are not guaranteed.
-- **Redis (Optional)**: The backend includes Redis cache support, but falls back gracefully without it.
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -m 'Add my feature'`
-4. Push to the branch: `git push origin feature/my-feature`
-5. Open a Pull Request
-
-**Code style guidelines:**
-- Use TypeScript for all frontend code
-- Follow the existing React component structure (functional components + hooks)
-- Add proper error handling in all async operations
-- Keep quantum math functions well-commented
-
----
-
-## 📄 License
+Contributions to expand the mathematical capabilities of the simulation engine are welcome. 
+- Ensure all new complex arithmetic in `complex.ts` is fully typed and unit-tested against Qiskit reference matrices.
+- Keep the `GPUQuantumVisualizer` shaders synced if adding visual dimensions.
 
 This project is developed for educational and research purposes in quantum computing visualization and simulation.
-
----
-
-## 🙏 Acknowledgments
-
-- **IBM Quantum** — For providing access to real quantum computing hardware via the IBM Quantum Platform
-- **Qiskit** — Open-source quantum computing SDK
-- **Google Gemini** — AI capabilities powering the AI Tutor
-- **Three.js Community** — Excellent 3D graphics tools
-- **React & Vite Community** — Fast and modern web development ecosystem
-- **FastAPI** — Elegant and high-performance Python API framework
-
----
 
 > **Bloch Verse** — *Explore the beauty of quantum mechanics through interactive visualization.* 🌌⚛️

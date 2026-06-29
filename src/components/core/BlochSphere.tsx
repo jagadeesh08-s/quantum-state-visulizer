@@ -332,7 +332,7 @@ const BlochSphere3D: React.FC<BlochSphereProps> = React.memo(({
         </Canvas>
 
         {/* Measurement Probabilities Overlay */}
-        <div className={`absolute bottom-4 left-4 p-3 rounded-lg backdrop-blur-md border ${isDark ? 'bg-black/60 border-white/10' : 'bg-white/80 border-black/5'} shadow-lg transition-all duration-300 pointer-events-none select-none z-10`}>
+        <div className={`absolute bottom-4 left-4 p-3 rounded-md border border-border bg-card shadow-sm transition-all duration-200 pointer-events-none select-none z-10`}>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className={`text-xs font-bold ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>|0⟩</span>

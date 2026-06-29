@@ -51,9 +51,9 @@ from models import (
     QuantumMLFeatureMapRequest, QuantumMLKernelRequest,
     QuantumMLVQCTrainRequest, QuantumMLVQCPredictRequest,
     DatasetGenerateRequest, DatasetGenerateResponse,
-    MedicalLoadRequest, MedicalAnalyzeRequest, ErrorResponse,
+    ErrorResponse,
     IBMCloudAuthRequest, WatsonXAuthRequest, QuantumStudyRequest,
-    QuantumStudyResponse, QuantumReportResponse, DatasetDownloadRequest
+    QuantumStudyResponse, QuantumReportResponse
 )
 
 # Import legacy modules (keeping for compatibility)
@@ -79,21 +79,16 @@ from quantum_data_preprocessing import (
     analyze_quantum_readiness
 )
 
-from medical_core import medical_core, download_csv_from_drive
-from symptom_analysis import symptom_analyzer
 from pydantic import BaseModel
 
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
 
-# IBM Quantum service
+# Local simulator service (replaces IBM Quantum cloud service)
 from ibm_service import ibm_service_instance
-import ibm_service
-print(f"DEBUG: Loading ibm_service from: {ibm_service.__file__}")
 
 from quantum_advantage_platform import quantum_platform
-from ibm_cloud_auth import ibm_cloud_auth
 from watsonx_service import watsonx_service
 from gemini_service import gemini_service
 
@@ -107,62 +102,8 @@ async def lifespan(app: FastAPI):
         container.logger().info("database_initialized_on_startup")
     except Exception as e:
         container.logger().error("database_init_failed", error=str(e))
-    
-    # Load medical dataset from DB in background to avoid event loop block
-    async def load_db_data():
-        print("DEBUG: ASYNC DB LOAD STARTED")
-        try:
-            from medical_core import medical_core
-            async for session in get_session():
-                print("DEBUG: SESSION ACQUIRED")
-                result = await medical_core.load_from_db(session)
-                if result:
-                    print(f"DEBUG: LOADED {result.get('sample_count')} RECORDS")
-                    container.logger().info("medical_dataset_loaded_from_db", sample_count=result.get('sample_count', 0))
-                else:
-                    print("DEBUG: NO RECORDS FOUND")
-                    container.logger().warning("no_medical_data_found_in_db")
-                break
-        except Exception as e:
-            print(f"DEBUG: LOAD ERROR: {e}")
-            container.logger().warning("medical_dataset_load_failed", error=str(e))
-            
-    asyncio.create_task(load_db_data())
 
-    # Initialize Symptom Analyzer (Background)
-    async def init_symptom_analyzer():
-        print("DEBUG: SYMPTOM ANALYZER INIT STARTED - Downloading Google Drive Dataset...")
-        try:
-             # Run in thread pool to avoid blocking
-             loop = asyncio.get_running_loop()
-             await loop.run_in_executor(None, symptom_analyzer.train)
-             print("DEBUG: SYMPTOM ANALYZER TRAINED SUCCESSFULLY")
-        except Exception as e:
-             print(f"DEBUG: SYMPTOM ANALYZER FAILED: {e}")
-
-    asyncio.create_task(init_symptom_analyzer())
-
-    # Auto-connect to IBM Quantum if token is available (Background)
-    async def init_ibm_quantum():
-        print("DEBUG: IBM QUANTUM AUTO-CONNECT STARTED")
-        try:
-            ibm_token = os.getenv("IBM_QUANTUM_TOKEN")
-            if ibm_token:
-                print(f"DEBUG: IBM Token found: {ibm_token[:10]}...")
-                result = await ibm_service_instance.validate_token(ibm_token)
-                if result.get("success"):
-                    print(f"DEBUG: ✅ IBM QUANTUM CONNECTED - Hub: {result.get('hub', 'default')}")
-                    container.logger().info("ibm_quantum_auto_connected", hub=result.get('hub'))
-                else:
-                    print(f"DEBUG: ❌ IBM QUANTUM CONNECTION FAILED: {result.get('error')}")
-                    container.logger().warning("ibm_quantum_auto_connect_failed", error=result.get('error'))
-            else:
-                print("DEBUG: No IBM_QUANTUM_TOKEN found in environment")
-        except Exception as e:
-            print(f"DEBUG: IBM QUANTUM AUTO-CONNECT ERROR: {e}")
-            container.logger().warning("ibm_quantum_auto_connect_error", error=str(e))
-
-    asyncio.create_task(init_ibm_quantum())
+    container.logger().info("local_simulator_mode_active", backends=["aer_simulator", "statevector_simulator", "qasm_simulator"])
 
     yield
 
@@ -176,9 +117,9 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app with enhanced configuration
 app = FastAPI(
-    title="Quantum Backend API",
-    version="2.0.0",
-    description="Enhanced Quantum Computing Backend with Advanced Features",
+    title="Quantum State Visualizer API",
+    version="2.1.0",
+    description="Local Quantum Computing Backend — All execution runs on Qiskit/Aer simulator",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan
@@ -186,7 +127,7 @@ app = FastAPI(
 
 # Import API versioning
 from api_versioning import version_middleware, versioned_router, create_versioned_router, APIVersion
-from routers import v1, v2, analytics, gamification, tutor
+from routers import v1, v2, analytics, gamification, tutor, vision
 
 # Register versioned routers
 versioned_router.register_version("v1", v1.v1_router, deprecated=True)
@@ -198,6 +139,7 @@ app.include_router(v2.v2_router)
 app.include_router(analytics.router)
 app.include_router(gamification.router)
 app.include_router(tutor.router)
+app.include_router(vision.router)
 
 # Add versioning middleware
 @app.middleware("http")
@@ -601,18 +543,12 @@ async def authenticate_watsonx(request: WatsonXAuthRequest):
 
 @app.post("/api/ibm/authenticate-cloud")
 async def authenticate_ibm_cloud(request: IBMCloudAuthRequest):
-    """Authenticate with IBM Cloud IAM and return bearer token + instance"""
-    token = await ibm_cloud_auth.get_bearer_token(request.apiKey)
-    if token:
-        # Register the mapping so Qiskit can find the real API key later
-        ibm_service_instance.register_cloud_token(token, request.apiKey, instance=request.instance)
-        
-        return {
-            "success": True, 
-            "token": token,
-            "instance": request.instance
-        }
-    return {"success": False, "error": "IBM Cloud authentication failed"}
+    """IBM Cloud auth is disabled in local-only mode."""
+    return {
+        "success": False,
+        "error": "IBM Cloud authentication is disabled. Running in local simulator mode.",
+        "mode": "local_simulator",
+    }
 
 
 # ============================================================================
@@ -623,13 +559,12 @@ async def authenticate_ibm_cloud(request: IBMCloudAuthRequest):
 
 class RuntimeConfigRequest(BaseModel):
     gemini_api_key: Optional[str] = None
-    google_drive_url: Optional[str] = None
 
 @app.post("/api/update-config")
 async def update_runtime_config(payload: RuntimeConfigRequest):
     """
     Hot-update optional service keys at runtime.
-    Accepts { gemini_api_key?, google_drive_url? } from the frontend.
+    Accepts { gemini_api_key? } from the frontend.
     """
     updated: list[str] = []
     errors: list[str] = []
@@ -648,33 +583,6 @@ async def update_runtime_config(payload: RuntimeConfigRequest):
         except Exception as e:
             errors.append(f"gemini: {str(e)}")
             print(f"[Config] ❌ Gemini key update failed: {e}")
-
-    # ── Google Drive Dataset URL ──────────────────────────────────────────────
-    if payload.google_drive_url:
-        try:
-            os.environ["MEDICAL_DATASET_URL"] = payload.google_drive_url
-            updated.append("google_drive_url")
-            print(f"[Config] ✅ Medical dataset URL set: {payload.google_drive_url}")
-
-            # Trigger dataset reload in the background (train() is sync, run in executor)
-            async def _reload_dataset():
-                try:
-                    loop = asyncio.get_running_loop()
-                    print("[Config] 🔄 Reloading medical dataset from new Drive URL...")
-                    # medical_core.train(None) will pick up MEDICAL_DATASET_URL from os.environ
-                    result = await loop.run_in_executor(None, medical_core.train, None)
-                    if result and result.get("status") == "Success":
-                        print(f"[Config] ✅ Medical dataset reloaded ({result.get('sample_count', '?')} records)")
-                    else:
-                        err = result.get("error", "unknown") if result else "no result"
-                        print(f"[Config] ⚠️ Dataset reload issue: {err}")
-                except Exception as exc:
-                    print(f"[Config] ❌ Dataset reload error: {exc}")
-
-            asyncio.create_task(_reload_dataset())
-        except Exception as e:
-            errors.append(f"google_drive_url: {str(e)}")
-            print(f"[Config] ❌ Drive URL update failed: {e}")
 
     if errors:
         return {
@@ -1793,219 +1701,6 @@ from error_handling import (
     CacheError,
     WorkerPoolError
 )
-
-# ---------------------------------------------------------------------------
-# Quantum Medical Core Endpoints
-# ---------------------------------------------------------------------------
-@app.post("/api/medical/save-training")
-async def save_training_data(data: Dict[str, Any], session: AsyncSession = Depends(get_session)):
-    """Save manually uploaded training records to DB"""
-    try:
-        records = data.get("records", [])
-        if not records:
-             raise HTTPException(status_code=400, detail="records are required")
-        
-        from medical_core import medical_core
-        import pandas as pd
-        
-        df = pd.DataFrame(records)
-        medical_core.train(df)
-        await medical_core.save_to_db(session, origin="Manual Upload")
-        
-        return {
-            "success": True,
-            "message": f"Saved {len(records)} records to database"
-        }
-    except Exception as e:
-        container.logger().error("medical_save_error", error=str(e))
-        raise QuantumAPIError(f"Failed to save training data: {str(e)}", status_code=400, error_code="MEDICAL_SAVE_ERROR")
-
-@app.post("/api/medical/load-drive")
-async def load_drive_dataset(data: Dict[str, Any], session: AsyncSession = Depends(get_session)):
-    """Load dataset from a public Google Drive link and save to DB"""
-    try:
-        url = data.get("url")
-        if not url:
-            raise HTTPException(status_code=400, detail="URL is required")
-        
-        # Download and parse
-        df = download_csv_from_drive(url)
-        
-        # Train model
-        result = medical_core.train(df)
-        
-        # Save to database
-        await medical_core.save_to_db(session, origin=url)
-        
-        return {
-            "success": True,
-            "message": f"Successfully loaded {result['sample_count']} records and saved to database",
-            "features": result['features'],
-            "classes": result['classes']
-        }
-    except Exception as e:
-        container.logger().error("medical_drive_load_error", error=str(e))
-        raise QuantumAPIError(f"Failed to load medical dataset: {str(e)}", status_code=400, error_code="MEDICAL_LOAD_ERROR")
-
-@app.post("/api/medical/analyze")
-async def analyze_patient(data: Dict[str, Any]):
-    """Analyze new patient data against loaded dataset"""
-    try:
-        patient_data = data.get("patientData")
-        if not patient_data:
-            raise HTTPException(status_code=400, detail="patientData is required")
-        
-        result = medical_core.predict(patient_data)
-        
-        # Enhanced AI Narrative using Gemini
-        if result.get("is_valid") and gemini_service.is_configured():
-            try:
-                diagnosis = result.get("diagnosis", "Unknown")
-                prompt = f"""
-                Patient Analysis Results:
-                Diagnosis: {diagnosis}
-                Confidence: {result.get('confidence', 0)}
-                Clinical Features: {patient_data}
-                
-                Please provide:
-                1. A professional medical narrative explaining this finding based on the features.
-                2. A list of 3 specific, actionable recommendations for the patient/doctor.
-                
-                Format as valid JSON: {{ "narrative": "...", "recommendations": ["...", "...", "..."] }}
-                """
-                
-                ai_response = await gemini_service.generate_response(prompt, context="Medical AI Assistant")
-                
-                try:
-                    import json
-                    # Clean markdown code blocks
-                    clean_response = ai_response.replace('```json', '').replace('```', '').strip()
-                    ai_data = json.loads(clean_response)
-                    
-                    if "narrative" in ai_data:
-                        result["narrative"] = ai_data["narrative"]
-                    if "recommendations" in ai_data and isinstance(ai_data["recommendations"], list):
-                        result["recommendations"] = ai_data["recommendations"]
-                except:
-                    result["narrative"] = ai_response
-            except Exception as e:
-                print(f"Gemini Analysis Error: {e}")
-        
-        return {
-            "success": True,
-            "result": result
-        }
-    except Exception as e:
-        container.logger().error("medical_analysis_error", error=str(e))
-        raise QuantumAPIError(f"Failed to analyze patient data: {str(e)}", status_code=400, error_code="MEDICAL_ANALYSIS_ERROR")
-
-@app.get("/api/medical/status")
-async def get_medical_status(session: AsyncSession = Depends(get_session)):
-    """Check if medical model is trained"""
-    # Just in case it's not loaded yet, try one more time directly
-    if medical_core.dataset is None:
-        try:
-             await medical_core.load_from_db(session)
-        except:
-             pass
-
-    from dataset_manager import dataset_manager
-    current_dataset_info = dataset_manager.get_current_dataset_info()
-
-    return {
-        "isTrained": medical_core.dataset is not None,
-        "sampleCount": len(medical_core.dataset) if medical_core.dataset is not None else 0,
-        "classes": medical_core.dataset[medical_core.target].unique().tolist() if medical_core.dataset is not None else [],
-        "currentDataset": current_dataset_info,
-        "selectedFeatures": medical_core.selected_features,
-        "currentDatasetName": medical_core.current_dataset_name
-    }
-
-@app.get("/api/medical/datasets")
-async def list_datasets():
-    """List all available datasets"""
-    from dataset_manager import dataset_manager
-    return {
-        "success": True,
-        "datasets": dataset_manager.list_datasets()
-    }
-
-@app.post("/api/medical/switch-dataset")
-async def switch_dataset(data: dict, session: AsyncSession = Depends(get_session)):
-    """Switch to a different dataset and retrain"""
-    try:
-        dataset_name = data.get("datasetName")
-        if not dataset_name:
-            raise HTTPException(status_code=400, detail="datasetName is required")
-        
-        from medical_core import switch_and_train_dataset
-        
-        # Switch and retrain
-        result = switch_and_train_dataset(dataset_name)
-        
-        if result.get("status") == "Failed":
-            raise HTTPException(status_code=404, detail=result.get("error"))
-        
-        # Save to DB
-        try:
-            await medical_core.save_to_db(session, origin=f"Dataset: {dataset_name}")
-        except:
-            pass
-        
-        return {
-            "success": True,
-            "message": f"Switched to dataset: {dataset_name}",
-            "trainingResult": result
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        container.logger().error("dataset_switch_error", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-
-
-# ============================================================================
-# Symptom Analysis Endpoints
-# ============================================================================
-
-class SymptomPredictRequest(BaseModel):
-    symptoms: List[str]
-
-@app.post("/api/symptoms/train")
-async def train_symptom_model():
-    """Trigger training of the symptom analysis model"""
-    try:
-        container.logger().info("symptom_training_started")
-        result = symptom_analyzer.train()
-        return result
-    except Exception as e:
-        container.logger().error("symptom_training_failed", error=str(e))
-        return {"success": False, "error": str(e)}
-
-@app.post("/api/symptoms/predict")
-async def predict_symptoms(request: SymptomPredictRequest):
-    """Predict condition based on symptoms"""
-    try:
-        container.logger().info("symptom_prediction_requested", symptoms=len(request.symptoms))
-        result = symptom_analyzer.predict(request.symptoms)
-        return result
-    except Exception as e:
-        container.logger().error("symptom_prediction_failed", error=str(e))
-        return {"success": False, "error": str(e)}
-
-@app.get("/api/symptoms/list")
-async def get_symptom_list():
-    """Get list of available symptoms for the frontend"""
-    try:
-        symptoms = symptom_analyzer.get_symptoms()
-        # Sort for better UI
-        symptoms.sort()
-        return {"success": True, "symptoms": symptoms}
-    except Exception as e:
-        container.logger().error("symptom_list_failed", error=str(e))
-        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

@@ -23,3 +23,4 @@ dependency-injector
 prometheus-client
 structlog
 sqlalchemy
+slowapi

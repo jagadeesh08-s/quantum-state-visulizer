@@ -144,7 +144,7 @@ const CircuitDiagram: React.FC<CircuitDiagramProps> = ({ circuit, className = ''
 
   return (
     <div className={`w-full overflow-x-auto ${className}`}>
-      <Card className="border-primary/20 bg-gradient-to-br from-card/50 to-card/80 backdrop-blur-sm">
+      <Card className="solid-panel">
         <CardContent className="p-6">
           <div className="relative" style={{ width: circuitWidth, height: circuit.numQubits * 80 + 100 }}>
             {/* Qubit lines */}
@@ -200,7 +200,7 @@ const CircuitDiagram: React.FC<CircuitDiagramProps> = ({ circuit, className = ''
             })}
 
             {/* Circuit info overlay */}
-            <div className="absolute top-0 right-0 bg-background/80 backdrop-blur-sm rounded-lg p-3 border border-primary/20">
+            <div className="absolute top-0 right-0 bg-background rounded-lg p-3 border border-border">
               <div className="text-xs space-y-1">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-primary rounded-full"></div>

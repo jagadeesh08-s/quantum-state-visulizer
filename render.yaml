@@ -10,8 +10,6 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         sync: false          # You will paste this in the Render dashboard
-      - key: MEDICAL_DATASET_URL
-        sync: false
       - key: IBM_QUANTUM_TOKEN
         sync: false
       - key: PORT

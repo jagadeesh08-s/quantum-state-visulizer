@@ -155,7 +155,7 @@ def limit_general_requests():
 
 def limit_ibm_requests():
     """Decorator for IBM Quantum specific rate limiting"""
-    return limiter.limit(f"{config.ibm_quantum.rate_limit}/minute")
+    return limiter.limit("10/minute")
 
 
 def limit_simulation_requests():

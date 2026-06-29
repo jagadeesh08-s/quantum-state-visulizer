@@ -66,7 +66,7 @@ export const QuantumGateBlock: React.FC<QuantumGateBlockProps> = ({
     >
       <div className={`
         relative p-3 rounded-lg border-2 border-primary/20 
-        bg-card/50 backdrop-blur-sm hover:border-primary/40 hover:shadow-lg hover:scale-105
+        bg-card hover:bg-muted border border-border shadow-sm hover:shadow-md hover:scale-[1.02]
         transition-all duration-200 group hover:bg-card/70
       `}
         draggable

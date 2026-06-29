@@ -1,11 +1,19 @@
+/**
+ * SimulatorSettings — formerly IBMQuantumConnection.
+ *
+ * Repurposed as a local simulator configuration panel.
+ * Preserves the same props interface (isOpen / onClose) so that
+ * every call-site in Header.tsx and elsewhere continues to work.
+ */
 import React, { useState } from 'react';
 import { useIBMQuantum } from '@/contexts/IBMQuantumContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Key, Cpu, DoorOpen, ExternalLink, ShieldCheck, Sparkles, Database, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Cpu, CheckCircle2, Zap, Activity, Server } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface IBMQuantumConnectionProps {
@@ -13,270 +21,199 @@ interface IBMQuantumConnectionProps {
     onClose: () => void;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3005';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3005';
+
+const NOISE_MODELS = [
+    { id: 'none',         label: 'None — ideal simulation',           description: 'Perfect gates, no decoherence' },
+    { id: 'depolarizing', label: 'Depolarizing noise',                description: 'Symmetric qubit error model' },
+    { id: 'thermal',      label: 'Thermal relaxation (T1/T2)',        description: 'Realistic device noise model' },
+];
 
 export const IBMQuantumConnection: React.FC<IBMQuantumConnectionProps> = ({ isOpen, onClose }) => {
-    const { isAuthenticated, token, login, logout, backends, selectedBackend, setSelectedBackend, isLoading } = useIBMQuantum();
-    const [newToken, setNewToken] = useState('');
+    const { backends, selectedBackend, setSelectedBackend } = useIBMQuantum();
 
-    // Optional extras - pre-fill from localStorage
-    const [showOptional, setShowOptional] = useState(false);
+    const [shots, setShots] = useState<number>(1024);
+    const [noiseModel, setNoiseModel] = useState<string>('none');
     const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-    const [driveUrl, setDriveUrl] = useState(() => localStorage.getItem('google_drive_url') || '');
-    const [isSavingOptional, setIsSavingOptional] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
-    const handleConnect = async () => {
-        if (newToken) {
-            await login(newToken);
-        }
-    };
-
-    const handleSaveOptionals = async () => {
-        setIsSavingOptional(true);
+    const handleSave = async () => {
+        setIsSaving(true);
         try {
-            // Persist to localStorage immediately
+            // Persist Gemini key locally
             if (geminiKey.trim()) {
                 localStorage.setItem('gemini_api_key', geminiKey.trim());
             } else {
                 localStorage.removeItem('gemini_api_key');
             }
 
-            if (driveUrl.trim()) {
-                localStorage.setItem('google_drive_url', driveUrl.trim());
-            } else {
-                localStorage.removeItem('google_drive_url');
-            }
-
-            // Push to backend so the running server can use them without restart
-            const payload: Record<string, string> = {};
-            if (geminiKey.trim()) payload.gemini_api_key = geminiKey.trim();
-            if (driveUrl.trim()) payload.google_drive_url = driveUrl.trim();
-
-            if (Object.keys(payload).length > 0) {
+            // Push Gemini key to backend at runtime if possible
+            if (geminiKey.trim()) {
                 try {
                     const res = await fetch(`${BACKEND_URL}/api/update-config`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload),
+                        body: JSON.stringify({ gemini_api_key: geminiKey.trim() }),
                     });
                     const data = await res.json();
                     if (data.success) {
-                        toast.success('Configuration saved & applied to backend!');
+                        toast.success('Settings saved & applied!');
                     } else {
-                        toast.warning('Saved locally. Backend update failed: ' + (data.error || 'unknown'));
+                        toast.success('Saved locally. Restart backend to apply AI key.');
                     }
                 } catch {
-                    // Backend might not be running – silently save locally only
-                    toast.success('Saved locally. Start the backend to apply server-side.');
+                    toast.success('Saved locally. Backend not reachable.');
                 }
             } else {
-                toast.success('Optional keys cleared.');
+                toast.success('Settings saved.');
             }
+
+            onClose();
         } finally {
-            setIsSavingOptional(false);
+            setIsSaving(false);
         }
     };
 
     const geminiSaved = !!localStorage.getItem('gemini_api_key');
-    const driveSaved = !!localStorage.getItem('google_drive_url');
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[520px] border-indigo-500/20 shadow-2xl bg-slate-950/95 backdrop-blur-xl">
+            <DialogContent className="sm:max-w-[540px] border-primary/20 shadow-2xl bg-card/95 backdrop-blur-xl">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                        <Cpu className="h-6 w-6 text-indigo-400" />
-                        IBM Quantum Connection
+                    <DialogTitle className="flex items-center gap-3 text-2xl font-bold">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                            <Cpu className="h-5 w-5 text-primary" />
+                        </div>
+                        <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                            Simulator Settings
+                        </span>
                     </DialogTitle>
-                    <DialogDescription className="text-slate-400">
-                        Connect to IBM Quantum hardware or simulators using your API token.
+                    <DialogDescription className="text-muted-foreground">
+                        Configure your local Qiskit/Aer quantum simulator
                     </DialogDescription>
                 </DialogHeader>
 
-                {!isAuthenticated ? (
-                    <div className="space-y-6 py-4">
-                        {isLoading ? (
-                            <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                                <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-                                <p className="text-sm text-slate-400">Auto-connecting to IBM Quantum...</p>
-                            </div>
-                        ) : (
-                            <>
-                                {/* ── IBM Token ───────────────────────────────── */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-300">IBM Quantum API Token</label>
-                                    <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <Key className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                                            <Input
-                                                placeholder="Enter your IBM Quantum token"
-                                                value={newToken}
-                                                onChange={(e) => setNewToken(e.target.value)}
-                                                className="pl-9 bg-slate-900/50 border-slate-800 text-slate-200 focus:border-indigo-500/50 transition-all"
-                                                type="password"
-                                            />
-                                        </div>
-                                        <Button
-                                            onClick={handleConnect}
-                                            disabled={isLoading || !newToken}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20"
-                                        >
-                                            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Connect'}
-                                        </Button>
-                                    </div>
-                                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-2">
-                                        <ExternalLink className="h-3 w-3" />
-                                        Get your token from{' '}
-                                        <a
-                                            href="https://quantum.ibm.com/"
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-indigo-400 hover:underline"
-                                        >
-                                            IBM Quantum Dashboard
-                                        </a>
-                                    </p>
-                                </div>
-                            </>
-                        )}
+                {/* Status Banner */}
+                <div className="flex items-center gap-3 rounded-xl border border-green-500/20 bg-green-500/5 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                            Local Simulator — Online
+                        </span>
                     </div>
-                ) : (
-                    <div className="space-y-6 py-4">
-                        <div className="flex items-center justify-between p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-indigo-500/20">
-                                    <ShieldCheck className="h-5 w-5 text-indigo-400" />
+                    <Badge variant="outline" className="ml-auto text-xs border-green-500/30 text-green-600 dark:text-green-400">
+                        <Server className="w-3 h-3 mr-1" /> Local
+                    </Badge>
+                </div>
+
+                {/* Backend Selection */}
+                <div className="space-y-2">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-primary" />
+                        Active Backend
+                    </Label>
+                    <Select value={selectedBackend || 'aer_simulator'} onValueChange={setSelectedBackend}>
+                        <SelectTrigger className="bg-background/50 border-border/50 focus:ring-primary/30">
+                            <SelectValue placeholder="Select backend…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {backends.map(b => (
+                                <SelectItem key={b.id} value={b.id}>
+                                    <div className="flex flex-col">
+                                        <span className="font-medium">{b.name}</span>
+                                        <span className="text-xs text-muted-foreground">{b.description} · {b.qubits} qubits</span>
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Shots Slider */}
+                <div className="space-y-3">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-accent" />
+                        Default Shots
+                        <Badge variant="secondary" className="ml-auto text-xs">{shots.toLocaleString()}</Badge>
+                    </Label>
+                    <Slider
+                        value={[shots]}
+                        onValueChange={([v]) => setShots(v)}
+                        min={128}
+                        max={16384}
+                        step={128}
+                        className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>128 (fast)</span>
+                        <span>16 384 (precise)</span>
+                    </div>
+                </div>
+
+                {/* Noise Model */}
+                <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Noise Model</Label>
+                    <div className="grid gap-2">
+                        {NOISE_MODELS.map(nm => (
+                            <button
+                                key={nm.id}
+                                onClick={() => setNoiseModel(nm.id)}
+                                className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
+                                    noiseModel === nm.id
+                                        ? 'border-primary/50 bg-primary/5'
+                                        : 'border-border/40 bg-background/30 hover:border-primary/30 hover:bg-primary/3'
+                                }`}
+                            >
+                                <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                    noiseModel === nm.id ? 'border-primary' : 'border-muted-foreground/40'
+                                }`}>
+                                    {noiseModel === nm.id && (
+                                        <div className="w-2 h-2 rounded-full bg-primary" />
+                                    )}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-semibold text-slate-200">Connected</p>
-                                    <p className="text-xs text-slate-400">Authorized Session</p>
+                                    <p className="text-sm font-medium">{nm.label}</p>
+                                    <p className="text-xs text-muted-foreground">{nm.description}</p>
                                 </div>
-                            </div>
-                            <Button variant="ghost" size="sm" onClick={logout} className="text-red-400 hover:text-red-300 hover:bg-red-500/10">
-                                <DoorOpen className="h-4 w-4 mr-2" />
-                                Logout
-                            </Button>
-                        </div>
-
-                        <div className="space-y-3">
-                            <label className="text-sm font-medium text-slate-300">Select Target Backend</label>
-                            <ScrollArea className="h-[200px] rounded-xl border border-slate-800 bg-slate-900/50 p-2">
-                                <div className="space-y-2">
-                                    {backends.map((backend) => (
-                                        <div
-                                            key={backend.id}
-                                            onClick={() => setSelectedBackend(backend.id)}
-                                            className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all border ${selectedBackend === backend.id
-                                                ? 'border-indigo-500/50 bg-indigo-500/10'
-                                                : 'border-transparent hover:bg-slate-800'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <Cpu className={`h-4 w-4 ${selectedBackend === backend.id ? 'text-indigo-400' : 'text-slate-500'}`} />
-                                                <span className="text-sm font-medium text-slate-200">{backend.name}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge variant="outline" className="text-[10px] py-0 h-4 bg-slate-950 border-slate-800">
-                                                    {backend.qubits} Qubits
-                                                </Badge>
-                                                <div className={`w-2 h-2 rounded-full ${backend.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`} title={backend.status} />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </ScrollArea>
-                        </div>
+                            </button>
+                        ))}
                     </div>
-                )}
+                </div>
 
-                {/* ── Optional: Gemini API Key + Google Drive Link ──────── */}
-                <div className="border-t border-slate-800/60 pt-4">
-                    <button
-                        type="button"
-                        onClick={() => setShowOptional((v) => !v)}
-                        className="flex items-center gap-2 w-full text-left text-sm text-slate-400 hover:text-slate-200 transition-colors group"
-                    >
-                        <span className="flex-1 font-medium">
-                            Optional Integrations
-                            {(geminiSaved || driveSaved) && (
-                                <span className="ml-2 inline-flex items-center gap-1 text-xs text-emerald-400">
-                                    <CheckCircle2 className="h-3 w-3" /> Configured
-                                </span>
-                            )}
-                        </span>
-                        {showOptional
-                            ? <ChevronUp className="h-4 w-4 group-hover:text-indigo-400 transition-colors" />
-                            : <ChevronDown className="h-4 w-4 group-hover:text-indigo-400 transition-colors" />
-                        }
-                    </button>
+                {/* Optional Gemini AI Key */}
+                <div className="space-y-2">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                        AI Assistant Key
+                        {geminiSaved && (
+                            <Badge variant="outline" className="ml-auto text-xs border-green-500/30 text-green-500">
+                                <CheckCircle2 className="w-3 h-3 mr-1" /> Saved
+                            </Badge>
+                        )}
+                    </Label>
+                    <input
+                        type="password"
+                        value={geminiKey}
+                        onChange={e => setGeminiKey(e.target.value)}
+                        placeholder="Gemini API key (optional)"
+                        className="w-full rounded-lg border border-border/50 bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        Powers the AI Tutor. Leave blank to use the app without AI features.
+                    </p>
+                </div>
 
-                    {showOptional && (
-                        <div className="mt-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
-                            {/* Gemini API Key */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                                    <Sparkles className="h-3.5 w-3.5 text-yellow-400" />
-                                    Gemini API Key
-                                    <span className="text-[10px] text-slate-500 font-normal">(optional)</span>
-                                </label>
-                                <div className="relative">
-                                    <Key className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                                    <Input
-                                        id="gemini-api-key"
-                                        type="password"
-                                        placeholder="AIzaSy..."
-                                        value={geminiKey}
-                                        onChange={(e) => setGeminiKey(e.target.value)}
-                                        className="pl-9 text-sm bg-slate-900/50 border-slate-800 text-slate-200 focus:border-yellow-500/50 transition-all placeholder:text-slate-600"
-                                    />
-                                </div>
-                                <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                                    <ExternalLink className="h-3 w-3 shrink-0" />
-                                    Get a free key at{' '}
-                                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-yellow-400/80 hover:underline">
-                                        Google AI Studio
-                                    </a>
-                                    . Powers the AI Quantum Assistant.
-                                </p>
-                            </div>
-
-                            {/* Google Drive URL */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                                    <Database className="h-3.5 w-3.5 text-cyan-400" />
-                                    Google Drive Dataset URL
-                                    <span className="text-[10px] text-slate-500 font-normal">(optional)</span>
-                                </label>
-                                <div className="relative">
-                                    <ExternalLink className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                                    <Input
-                                        id="google-drive-url"
-                                        type="url"
-                                        placeholder="https://drive.google.com/drive/folders/..."
-                                        value={driveUrl}
-                                        onChange={(e) => setDriveUrl(e.target.value)}
-                                        className="pl-9 text-sm bg-slate-900/50 border-slate-800 text-slate-200 focus:border-cyan-500/50 transition-all placeholder:text-slate-600"
-                                    />
-                                </div>
-                                <p className="text-[11px] text-slate-500">
-                                    Paste a shared Google Drive folder or file link. Used by the Medical Analysis module to load your dataset.
-                                </p>
-                            </div>
-
-                            <Button
-                                onClick={handleSaveOptionals}
-                                disabled={isSavingOptional}
-                                size="sm"
-                                className="w-full bg-gradient-to-r from-yellow-600/80 to-cyan-700/80 hover:from-yellow-600 hover:to-cyan-700 text-white border-0 shadow-md"
-                            >
-                                {isSavingOptional ? (
-                                    <><Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> Saving...</>
-                                ) : (
-                                    <><CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Save Optional Keys</>
-                                )}
-                            </Button>
-                        </div>
-                    )}
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                    <Button variant="outline" onClick={onClose} className="flex-1">
+                        Cancel
+                    </Button>
+                    <Button onClick={handleSave} disabled={isSaving} className="flex-1 gap-2">
+                        {isSaving ? (
+                            <>Saving…</>
+                        ) : (
+                            <><CheckCircle2 className="w-4 h-4" /> Apply Settings</>
+                        )}
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>

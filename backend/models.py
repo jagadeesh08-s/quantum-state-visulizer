@@ -222,16 +222,6 @@ class DatasetGenerateResponse(BaseModel):
     numSamples: int
 
 
-class MedicalLoadRequest(BaseModel):
-    """Medical dataset load request"""
-    url: str
-
-
-class MedicalAnalyzeRequest(BaseModel):
-    """Medical analysis request"""
-    patientData: Dict[str, Any]
-
-
 class IBMCloudAuthRequest(BaseModel):
     """IBM Cloud authentication request"""
     apiKey: str
@@ -264,12 +254,19 @@ class QuantumReportResponse(BaseModel):
     report: str
     format: str = "markdown"
 
-class DatasetDownloadRequest(BaseModel):
-    """Dataset download request"""
-    dataset_name: str = Field(..., description="Kaggle dataset identifier or alias (e.g., 'ybone')")
-
 class ErrorResponse(BaseModel):
     """Standard error response"""
     error: str
     message: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
+
+class VisionAnalysisRequest(BaseModel):
+    """Vision analysis request"""
+    image: str = Field(..., description="Base64 encoded image data")
+    prompt: Optional[str] = Field(default="Describe what you see on the screen in detail.", description="Prompt for the vision model")
+
+class VisionAnalysisResponse(BaseModel):
+    """Vision analysis response"""
+    success: bool
+    description: str
+    timestamp: str

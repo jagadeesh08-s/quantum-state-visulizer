@@ -734,13 +734,13 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                 </div>
               )}
 
-              {/* Qubit Wires - Horizontally Scrollable Container */}
-              <div className="max-h-[600px] overflow-y-auto overflow-x-auto border-2 border-dashed border-gray-700/30 rounded-lg p-4 bg-gray-800/5 relative circuit-scrollbar hover:border-primary/50 transition-colors">
-                <div className="flex flex-col gap-4">
+              {/* Qubit Wires - Dashboard Glass Container */}
+              <div className="max-h-[600px] overflow-y-auto overflow-x-auto glass-panel rounded-xl p-6 relative circuit-scrollbar transition-all duration-300">
+                <div className="flex flex-col gap-6">
                   {Array.from({ length: numQubits }).map((_, qubitIndex) => (
                     <div
                       key={qubitIndex}
-                      className={`flex items-center gap-2 min-h-[60px] p-2 rounded-lg transition-all duration-200 ${dragOverQubit === qubitIndex ? 'bg-primary/20 border-2 border-primary border-dashed scale-[1.02]' : 'hover:bg-primary/5'
+                      className={`flex items-center gap-4 min-h-[70px] p-3 rounded-xl transition-all duration-300 ${dragOverQubit === qubitIndex ? 'bg-primary/20 border border-primary/50 scale-[1.02] quantum-glow' : 'hover:bg-primary/5 border border-transparent hover:border-primary/20'
                         }`}
                       onDragOver={e => { e.preventDefault(); handleWireDragOver(qubitIndex); }}
                       onDrop={e => { e.preventDefault(); handleWireDrop(qubitIndex); }}
@@ -860,32 +860,7 @@ export const CircuitBuilder: React.FC<CircuitBuilderProps> = React.memo(({
                 </div>
               </div>
 
-              {/* Bottom Action Bar for Circuits */}
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 p-4 bg-primary/5 border border-primary/10 rounded-xl">
-                <div className="flex items-center gap-4">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-tighter text-muted-foreground font-bold">Hardware Connection</span>
-                    <span className="text-xs font-semibold">{isAuthenticated ? 'Status: Authenticated' : 'Status: Local Only'}</span>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="default"
-                    size="lg"
-                    onClick={handleRunOnIBM}
-                    disabled={isIBMLoading || circuitGates.length === 0}
-                    className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/50 shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] font-bold"
-                  >
-                    {isIBMLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    ) : (
-                      <Zap className="h-5 w-5 mr-2 fill-indigo-200" />
-                    )}
-                    Run Experiment on IBM Quantum
-                  </Button>
-                </div>
-              </div>
 
               {/* Circuit Summary - Outside scrollable area */}
               {circuitGates.length > 0 && (

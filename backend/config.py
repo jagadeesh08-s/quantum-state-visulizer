@@ -27,12 +27,12 @@ class RedisConfig:
 
 
 @dataclass
-class IBMQuantumConfig:
-    """IBM Quantum configuration"""
-    token: Optional[str] = None
-    timeout: int = 30
-    max_retries: int = 3
-    rate_limit: int = 10  # requests per minute
+class LocalSimulatorConfig:
+    """Local quantum simulator configuration"""
+    default_backend: str = "aer_simulator"
+    max_shots: int = 100000
+    noise_model: str = "none"  # none | depolarizing | thermal
+    optimization_level: int = 1
 
 
 @dataclass
@@ -77,7 +77,7 @@ class Config:
     # Core components
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     redis: RedisConfig = field(default_factory=RedisConfig)
-    ibm_quantum: IBMQuantumConfig = field(default_factory=IBMQuantumConfig)
+    local_simulator: LocalSimulatorConfig = field(default_factory=LocalSimulatorConfig)
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
     quantum: QuantumConfig = field(default_factory=QuantumConfig)
     api: APIConfig = field(default_factory=APIConfig)
@@ -86,9 +86,9 @@ class Config:
     env: str = "development"
     debug: bool = False
     secret_key: str = "your-secret-key-change-in-production"
+    local_only_mode: bool = True  # Always local — no IBM cloud
 
     # External services
-    medical_dataset_url: Optional[str] = None
     kaggle_username: Optional[str] = None
     kaggle_key: Optional[str] = None
 
@@ -110,11 +110,11 @@ class Config:
                 max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", "20"))
             ),
 
-            # IBM Quantum
-            ibm_quantum=IBMQuantumConfig(
-                token=os.getenv("IBM_QUANTUM_TOKEN"),
-                timeout=int(os.getenv("IBM_TIMEOUT", "30")),
-                rate_limit=int(os.getenv("IBM_RATE_LIMIT", "10"))
+            # Local Simulator
+            local_simulator=LocalSimulatorConfig(
+                default_backend=os.getenv("LOCAL_SIMULATOR_BACKEND", "aer_simulator"),
+                noise_model=os.getenv("NOISE_MODEL", "none"),
+                optimization_level=int(os.getenv("OPT_LEVEL", "1")),
             ),
 
             # Monitoring
@@ -146,7 +146,6 @@ class Config:
             secret_key=os.getenv("SECRET_KEY", "your-secret-key-change-in-production"),
 
             # External services
-            medical_dataset_url=os.getenv("MEDICAL_DATASET_URL"),
             kaggle_username=os.getenv("KAGGLE_USERNAME"),
             kaggle_key=os.getenv("KAGGLE_KEY")
         )

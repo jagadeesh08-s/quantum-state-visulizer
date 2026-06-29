@@ -1,316 +1,269 @@
-// Quantum API service for communicating with the backend
-// Handles IBM Quantum integration and circuit execution
+/**
+ * Quantum API Service
+ * All execution routes to the local backend (Qiskit/Aer simulator).
+ * IBM Quantum cloud functions are preserved as stubs for compatibility
+ * but always return local-mode responses — no external calls are made.
+ */
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.REACT_APP_API_URL) || 'http://localhost:3005';
+const API_BASE_URL =
+    (import.meta.env.VITE_API_BASE_URL || import.meta.env.REACT_APP_API_URL) ||
+    'http://localhost:3005';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface QuantumExecutionOptions {
-  backend: 'local' | 'aer_simulator' | 'wasm';
-  shots?: number;
-  initialState?: string;
-  customState?: { alpha: string; beta: string };
+    backend: 'local' | 'aer_simulator' | 'wasm' | 'statevector_simulator' | 'qasm_simulator';
+    shots?: number;
+    initialState?: string;
+    customState?: { alpha: string; beta: string };
 }
 
 export interface QuantumExecutionResult {
-  success: boolean;
-  method: string;
-  backend: string;
-  executionTime: number;
-  qubitResults?: any[];
-  jobId?: string;
-  status?: string;
-  message?: string;
-  error?: string;
+    success: boolean;
+    method: string;
+    backend: string;
+    executionTime: number;
+    qubitResults?: any[];
+    jobId?: string;
+    status?: string;
+    message?: string;
+    error?: string;
 }
 
 export interface JobStatus {
-  jobId: string;
-  status: string;
-  statusMessage: string;
-  progress: number;
-  estimatedTime: number | null;
-  backend?: string;
-  results?: any;
+    jobId: string;
+    status: string;
+    statusMessage: string;
+    progress: number;
+    estimatedTime: number | null;
+    backend?: string;
+    results?: any;
 }
 
-// Execute quantum circuit on specified backend
+// ─── Core Execution ───────────────────────────────────────────────────────────
+
+/** Execute a quantum circuit. Uses WASM in-browser or the local backend. */
 export async function executeQuantumCircuit(
-  circuit: any,
-  options: QuantumExecutionOptions
+    circuit: any,
+    options: QuantumExecutionOptions,
 ): Promise<QuantumExecutionResult> {
-  // Check if using WebAssembly simulator
-  if (options.backend === 'wasm') {
+    // WebAssembly in-browser path
+    if (options.backend === 'wasm') {
+        try {
+            const { executeCircuit } = await import('../utils/simulation/wasm-simulator/quantumSimulator');
+            const result = executeCircuit({
+                circuit,
+                initialState: options.initialState || 'ket0',
+                customState: options.customState,
+            });
+            return {
+                success: result.success,
+                method: 'wasm_simulator',
+                backend: 'wasm',
+                executionTime: result.executionTime,
+                qubitResults: result.qubitResults,
+                error: result.error,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                method: 'wasm_error',
+                backend: 'wasm',
+                executionTime: 0,
+                error: error instanceof Error ? error.message : 'WebAssembly execution failed',
+            };
+        }
+    }
+
+    // Local backend path
     try {
-      const { executeCircuit } = await import('../utils/simulation/wasm-simulator/quantumSimulator');
-      const result = executeCircuit({
-        circuit,
-        initialState: options.initialState || 'ket0',
-        customState: options.customState
-      });
+        const response = await fetch(`${API_BASE_URL}/api/quantum/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                backend: options.backend,
+                circuit,
+                initialState: options.initialState || 'ket0',
+                customState: options.customState || { alpha: '1', beta: '0' },
+                shots: options.shots || 1024,
+            }),
+        });
 
-      return {
-        success: result.success,
-        method: 'wasm_simulator',
-        backend: 'wasm',
-        executionTime: result.executionTime,
-        qubitResults: result.qubitResults,
-        error: result.error
-      };
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to execute circuit');
+        }
+
+        return await response.json();
     } catch (error) {
-      console.error('WebAssembly execution error:', error);
-      return {
-        success: false,
-        method: 'wasm_error',
-        backend: 'wasm',
-        executionTime: 0,
-        error: error instanceof Error ? error.message : 'WebAssembly execution failed',
-      };
+        return {
+            success: false,
+            method: 'error',
+            backend: options.backend,
+            executionTime: 0,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
     }
-  }
+}
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/quantum/execute`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        backend: options.backend,
-        circuit,
-        initialState: options.initialState || 'ket0',
-        customState: options.customState || { alpha: '1', beta: '0' },
-        shots: options.shots || 1024,
-      }),
-    });
+// ─── IBM-compatible stubs (local mode) ────────────────────────────────────────
+// These functions preserve the existing API surface but route to local simulation.
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to execute circuit');
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Quantum execution error:', error);
+/** "Connect" — always succeeds in local mode, no network call to IBM. */
+export async function connectToIBM(_token: string): Promise<any> {
     return {
-      success: false,
-      method: 'error',
-      backend: options.backend,
-      executionTime: 0,
-      error: error instanceof Error ? error.message : 'Unknown error',
+        success: true,
+        hub: 'local',
+        mode: 'local_simulator',
+        message: 'Local simulator — no IBM token required',
     };
-  }
 }
 
-// Cache management functions (REMOVED JOB METHODS)
-
-
-// IBM Quantum Integration Functions
-export async function connectToIBM(token: string): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/ibm/connect`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('IBM Quantum connection error:', error);
+/** Returns local simulator backends. */
+export async function getIBMBackends(_token: string): Promise<any> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/ibm/backends?token=local`);
+        if (response.ok) return await response.json();
+    } catch { /* backend not running */ }
     return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to connect to IBM Quantum service'
+        success: true,
+        backends: [
+            { id: 'aer_simulator', name: 'aer_simulator', qubits: 32, status: 'online', type: 'simulator' },
+            { id: 'statevector_simulator', name: 'statevector_simulator', qubits: 30, status: 'online', type: 'simulator' },
+            { id: 'qasm_simulator', name: 'qasm_simulator', qubits: 32, status: 'online', type: 'simulator' },
+        ],
+        mode: 'local_simulator',
     };
-  }
 }
 
-export async function getIBMBackends(token: string): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/ibm/backends?token=${token}`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+/** Execute on local simulator (ignores token). */
+export async function executeOnIBM(
+    _token: string,
+    backend: string,
+    circuit: any,
+    shots = 1024,
+): Promise<any> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/ibm/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: 'local', backend, circuit, shots }),
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Local execution failed',
+        };
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('IBM Quantum backends error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to get IBM Quantum backends'
-    };
-  }
 }
 
-export async function executeOnIBM(token: string, backend: string, circuit: any, shots: number = 1024): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/ibm/execute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, backend, circuit, shots }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+/** Retrieve status of a local job. */
+export async function getIBMJobStatus(jobId: string, _token: string): Promise<any> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/ibm/job/${jobId}?token=local`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get job status',
+        };
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('IBM Quantum execution error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to execute on IBM Quantum'
-    };
-  }
 }
 
-export async function getIBMJobStatus(jobId: string, token: string): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/ibm/job/${jobId}?token=${token}`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+/** Retrieve local job history. */
+export async function getIBMJobHistory(_token: string, limit = 10): Promise<any> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/ibm/jobs?token=local&limit=${limit}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get job history',
+        };
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('IBM Quantum job status error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to get IBM Quantum job status'
-    };
-  }
 }
 
-export async function getIBMJobHistory(token: string, limit: number = 10): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/ibm/jobs?token=${token}&limit=${limit}`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('IBM Quantum job history error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to get IBM Quantum job history'
-    };
-  }
+/** Not applicable in local mode — returns empty download URL. */
+export function getIBMJobResultsDownloadUrl(jobId: string, _token: string): string {
+    return `${API_BASE_URL}/api/ibm/job/${jobId}/results/download?token=local`;
 }
 
-export function getIBMJobResultsDownloadUrl(jobId: string, token: string): string {
-  return `${API_BASE_URL}/api/ibm/job/${jobId}/results/download?token=${token}`;
-}
+// ─── Cache Management ─────────────────────────────────────────────────────────
 
-// Cache management functions
 export async function getCacheStats(): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/cache/stats`);
-    if (!response.ok) {
-      throw new Error('Failed to get cache stats');
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/cache/stats`);
+        if (!response.ok) throw new Error('Failed to get cache stats');
+        return await response.json();
+    } catch (error) {
+        return { success: false, error: 'Failed to get cache stats' };
     }
-    return await response.json();
-  } catch (error) {
-    console.error('Cache stats error:', error);
-    return { success: false, error: 'Failed to get cache stats' };
-  }
 }
 
 export async function clearCache(): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/cache/clear`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) {
-      throw new Error('Failed to clear cache');
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/cache/clear`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to clear cache');
+        return await response.json();
+    } catch (error) {
+        return { success: false, error: 'Failed to clear cache' };
     }
-    return await response.json();
-  } catch (error) {
-    console.error('Clear cache error:', error);
-    return { success: false, error: 'Failed to clear cache' };
-  }
 }
 
-// Research Platform Functions
+// ─── Research Platform ────────────────────────────────────────────────────────
+
 export async function runQuantumStudy(
-  algorithmType: string,
-  circuit: any,
-  token: string,
-  backend: string
+    algorithmType: string,
+    circuit: any,
+    _token: string,
+    backend: string,
 ): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/quantum-study`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ algorithmType, circuit, token, backend }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/quantum-study`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ algorithmType, circuit, token: 'local', backend }),
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to run quantum study',
+        };
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Quantum study error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to run quantum study'
-    };
-  }
 }
 
 export async function getQuantumReport(jobId: string): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/quantum-report/${jobId}`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/quantum-report/${jobId}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get quantum report',
+        };
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Quantum report error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to get quantum report'
-    };
-  }
 }
 
-export async function authenticateWatsonX(apiKey: string): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/watsonx/authenticate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('watsonx authentication error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to authenticate with watsonx.ai'
-    };
-  }
+/** watsonx.ai — disabled in local mode */
+export async function authenticateWatsonX(_apiKey: string): Promise<any> {
+    return { success: false, error: 'watsonx.ai is disabled in local simulator mode' };
 }
 
-// Export quantumAPI object for backward compatibility
+// ─── Backward-compat export ───────────────────────────────────────────────────
+
 export const quantumAPI = {
-  executeQuantumCircuit,
-  getCacheStats,
-  clearCache,
-  connectToIBM,
-  getIBMBackends,
-  executeOnIBM,
-  getIBMJobStatus
+    executeQuantumCircuit,
+    getCacheStats,
+    clearCache,
+    connectToIBM,
+    getIBMBackends,
+    executeOnIBM,
+    getIBMJobStatus,
 };

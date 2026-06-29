@@ -35,7 +35,7 @@ export const TutorialOverlay: React.FC = () => {
                 exit={{ opacity: 0, x: 100, scale: 0.9 }}
                 className="fixed top-24 right-6 z-[100] w-80 pointer-events-auto"
             >
-                <Card className="border-primary/40 bg-card/80 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
+                <Card className="solid-panel relative overflow-hidden">
                     {/* Animated background glow */}
                     <div className="absolute -top-12 -right-12 w-24 h-24 bg-primary/20 rounded-full blur-2xl animate-pulse" />
 

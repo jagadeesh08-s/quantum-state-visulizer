@@ -1,317 +1,368 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+import { motion, useScroll, useTransform, useSpring, useInView } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import {
-    ArrowRight, Box, Cpu, Activity, Share2, Layers,
-    Zap, Brain, Network, MousePointerClick, ChevronDown,
-    Globe, Shield, PlayCircle
+    ArrowRight, Cpu, Activity, Share2, Layers,
+    Zap, Brain, Network, ChevronDown, Shield,
+    CircuitBoard, Atom, BarChart3, Code2, Sparkles,
+    Play, CheckCircle, Globe, Box
 } from 'lucide-react';
 import BlochSphere3D from '@/components/core/BlochSphere';
 import { Header } from '@/components/layout/Header';
 
+// ─── Animated Counter ─────────────────────────────────────────────────────────
+function AnimatedCounter({ target, suffix = '', duration = 2000 }: { target: number; suffix?: string; duration?: number }) {
+    const [count, setCount] = useState(0);
+    const ref = useRef<HTMLSpanElement>(null);
+    const inView = useInView(ref, { once: true });
+
+    useEffect(() => {
+        if (!inView) return;
+        const startTime = performance.now();
+        const animate = (now: number) => {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 4);
+            setCount(Math.round(eased * target));
+            if (progress < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+    }, [inView, target, duration]);
+
+    return <span ref={ref} className="stat-number">{count.toLocaleString()}{suffix}</span>;
+}
+
+// ─── Feature Card ─────────────────────────────────────────────────────────────
+function FeatureCard({ icon: Icon, title, description, color, delay }: {
+    icon: React.ElementType; title: string; description: string; color: string; delay: number;
+}) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay, ease: [0.16, 1, 0.3, 1] }}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            className="glass-panel hover:quantum-glow rounded-xl p-6 flex flex-col gap-4 cursor-default transition-all duration-300 group"
+        >
+            <div className={`w-12 h-12 rounded-xl ${color} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+                <Icon className="w-6 h-6 text-white" />
+            </div>
+            <div>
+                <h3 className="font-semibold text-foreground mb-1.5 text-lg">{title}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Particle Field ────────────────────────────────────────────────────────────
+function ParticleField() {
+    return null;
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 const Landing = () => {
     const navigate = useNavigate();
     const { scrollYProgress } = useScroll();
-    const y = useTransform(scrollYProgress, [0, 1], [0, -50]);
+    const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
+    const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -60]);
+    const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0.4]);
 
-    // Smooth scroll progress
-    const scaleX = useSpring(scrollYProgress, {
-        stiffness: 100,
-        damping: 30,
-        restDelta: 0.001
-    });
-
-    // Auto-rotation for visual effect
     const [rotation, setRotation] = useState({ x: 0, y: 0, z: 0 });
-
     useEffect(() => {
-        const interval = setInterval(() => {
-            setRotation(prev => ({
-                x: prev.x + 0.005,
-                y: prev.y + 0.01,
-                z: prev.z + 0.002
-            }));
+        const id = setInterval(() => {
+            setRotation(p => ({ x: p.x + 0.005, y: p.y + 0.01, z: p.z + 0.002 }));
         }, 16);
-        return () => clearInterval(interval);
+        return () => clearInterval(id);
     }, []);
 
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.1,
-                delayChildren: 0.3
-            }
-        }
-    };
+    const FEATURES = [
+        { icon: CircuitBoard, title: 'Drag-and-Drop Circuit Builder', description: 'Visually compose quantum circuits with 15+ gates. Real-time state propagation shows the output at every step.', color: 'bg-gradient-to-br from-blue-500 to-blue-600', delay: 0 },
+        { icon: Box,          title: '3D Bloch Sphere Visualizer',   description: 'Watch qubits evolve in real-time on an interactive 3D Bloch sphere with precision orbit controls.', color: 'bg-gradient-to-br from-violet-500 to-purple-600', delay: 0.1 },
+        { icon: Activity,     title: 'Noise & Error Modeling',        description: 'Simulate T1/T2 decoherence, depolarizing and thermal noise. Apply error mitigation techniques in one click.', color: 'bg-gradient-to-br from-emerald-500 to-teal-600', delay: 0.2 },
+        { icon: Brain,        title: 'AI Quantum Tutor',             description: 'Gemini-powered AI assistant explains quantum concepts, debugs circuits, and walks you through algorithms.', color: 'bg-gradient-to-br from-orange-500 to-amber-600', delay: 0.3 },
+        { icon: BarChart3,    title: 'Advanced Analytics',           description: 'Entanglement maps, density matrices, Wigner functions, and quantum state fidelity analysis.', color: 'bg-gradient-to-br from-rose-500 to-pink-600', delay: 0.4 },
+        { icon: Code2,        title: 'Qiskit Code Editor',           description: 'Write and run Qiskit Python code directly in the browser. Instantly visualize the output state.', color: 'bg-gradient-to-br from-cyan-500 to-sky-600', delay: 0.5 },
+        { icon: Zap,          title: 'VQE Playground',               description: 'Explore Variational Quantum Eigensolvers with configurable ansatz and observables in real-time.', color: 'bg-gradient-to-br from-yellow-500 to-orange-500', delay: 0.6 },
+        { icon: Shield,       title: 'Local-First Execution',        description: 'All circuits run on the local Qiskit/Aer simulator. No cloud account, no API keys, no data leaves your machine.', color: 'bg-gradient-to-br from-slate-500 to-slate-600', delay: 0.7 },
+    ];
 
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0 },
-        visible: {
-            y: 0,
-            opacity: 1,
-            transition: { type: "spring", stiffness: 100 }
-        }
-    };
+    const STATS = [
+        { value: 15,    suffix: '+', label: 'Quantum Gates' },
+        { value: 100,   suffix: '',  label: 'Max Qubits' },
+        { value: 16384, suffix: '',  label: 'Max Shots' },
+        { value: 6,     suffix: '+', label: 'Noise Models' },
+    ];
 
     return (
-        <div className="min-h-screen bg-background text-foreground font-poppins selection:bg-primary/20 overflow-x-hidden">
+        <div className="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
 
-            {/* Scroll Progress Bar */}
+            {/* SEO */}
+            <title>Quantum State Visualizer — Local Quantum Circuit Simulator</title>
+
+            {/* Scroll Progress */}
             <motion.div
-                className="fixed top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 origin-left z-50"
+                className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-primary via-accent to-secondary origin-left z-50"
                 style={{ scaleX }}
             />
 
             <Header />
 
-            {/* Decorative Floating Elements */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-                <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-cyan-400/10 rounded-full blur-[100px] animate-pulse" />
-                <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-purple-500/10 rounded-full blur-[100px] animate-pulse delay-1000" />
-                <div className="absolute top-[40%] left-[20%] w-[300px] h-[300px] bg-pink-500/5 rounded-full blur-[80px] animate-pulse delay-700" />
-            </div>
+            {/* ── Hero ─────────────────────────────────────────────────────────── */}
+            <section className="relative min-h-[calc(100vh-72px)] flex items-center justify-center overflow-hidden">
+                <ParticleField />
 
-            <main className="container mx-auto px-6 pt-24 lg:pt-32 pb-20">
-
-                {/* Hero Section */}
-                <div className="flex flex-col items-center justify-center text-center gap-12 mb-32">
-                    <motion.div
-                        initial="hidden"
-                        animate="visible"
-                        variants={containerVariants}
-                        className="space-y-8"
-                    >
-                        <motion.div variants={itemVariants}>
-                            <Badge variant="outline" className="px-4 py-2 rounded-full border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors cursor-default backdrop-blur-sm">
-                                <Zap className="w-3 h-3 mr-2 animate-bounce" />
-                                Now with IBM Quantum Integration
-                            </Badge>
-                        </motion.div>
-
-                        <motion.h1
-                            variants={itemVariants}
-                            className="text-5xl md:text-7xl font-bold font-outfit leading-[1.1] tracking-tight"
-                        >
-                            Visualize the <br />
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 animate-gradient-x">
-                                Quantum Realm
-                            </span>
-                        </motion.h1>
-
-                        <motion.p
-                            variants={itemVariants}
-                            className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-lg"
-                        >
-                            Dive into the subatomic world. Build circuits, visualize states,
-                            and run real experiments on IBM Quantum hardware with our
-                            interactive 3D playground.
-                        </motion.p>
-
+                <motion.div
+                    style={{ y: heroY, opacity: heroOpacity }}
+                    className="relative z-10 container mx-auto px-6 pt-16 pb-24"
+                >
+                    <div className="grid lg:grid-cols-2 gap-16 items-center">
+                        {/* Left — Copy */}
                         <motion.div
-                            variants={itemVariants}
-                            className="flex flex-col sm:flex-row gap-4 pt-4"
+                            initial="hidden"
+                            animate="visible"
+                            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12 } } }}
+                            className="space-y-8"
                         >
-                            <Button
-                                size="lg"
-                                onClick={() => navigate('/workspace')}
-                                className="h-14 px-8 text-lg rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white shadow-lg hover:shadow-cyan-500/25 transition-all duration-300 hover:scale-105 hover:-translate-y-1"
+                            <motion.div
+                                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6 } } }}
                             >
-                                Start Experimenting
-                                <ArrowRight className="ml-2 w-5 h-5" />
-                            </Button>
-                            <Button
-                                size="lg"
-                                variant="outline"
-                                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                                className="h-14 px-8 text-lg rounded-2xl border-2 hover:bg-muted/50 transition-all duration-300 hover:scale-105"
+                                <Badge
+                                    variant="outline"
+                                    className="float-badge gap-2 px-4 py-1.5 border-primary/30 bg-primary/5 text-primary font-medium"
+                                    id="hero-badge"
+                                >
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    Local Simulator — No Cloud Required
+                                </Badge>
+                            </motion.div>
+
+                            <motion.div
+                                variants={{ hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0, transition: { duration: 0.7 } } }}
                             >
-                                <PlayCircle className="mr-2 w-5 h-5" />
-                                Watch Demo
-                            </Button>
+                                <h1 className="text-5xl lg:text-6xl xl:text-7xl font-bold leading-[1.08] tracking-tight">
+                                    <span className="text-primary">Quantum</span>
+                                    <br />
+                                    <span className="text-foreground">State Visualizer</span>
+                                </h1>
+                                <p className="mt-6 text-lg lg:text-xl text-muted-foreground leading-relaxed max-w-xl">
+                                    Build, simulate, and analyze quantum circuits entirely in your browser.
+                                    Interactive 3D visualization, AI assistance, and noise modeling — all local,
+                                    all instant.
+                                </p>
+                            </motion.div>
+
+                            <motion.div
+                                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, delay: 0.1 } } }}
+                                className="flex flex-wrap gap-4"
+                            >
+                                <Button
+                                    id="hero-launch-btn"
+                                    size="lg"
+                                    onClick={() => navigate('/workspace')}
+                                    className="gap-2.5 px-8 py-6 text-base font-semibold rounded-full shadow-lg hover:quantum-glow transition-all duration-300 bg-primary text-white"
+                                >
+                                    <Play className="w-5 h-5" />
+                                    Launch Workspace
+                                    <ArrowRight className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    id="hero-learn-btn"
+                                    size="lg"
+                                    variant="outline"
+                                    onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="gap-2 px-8 py-6 text-base rounded-md border-border hover:bg-muted transition-colors duration-200"
+                                >
+                                    Explore Features
+                                    <ChevronDown className="w-4 h-4" />
+                                </Button>
+                            </motion.div>
+
+                            {/* Trust signals */}
+                            <motion.div
+                                variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.5, delay: 0.3 } } }}
+                                className="flex flex-wrap gap-6 text-sm text-muted-foreground"
+                            >
+                                {[
+                                    { icon: Shield,  text: 'Local-first — data never leaves your machine' },
+                                    { icon: Zap,     text: 'Qiskit/Aer powered' },
+                                    { icon: Globe,   text: 'Open source' },
+                                ].map(({ icon: Icon, text }) => (
+                                    <div key={text} className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-accent shrink-0" />
+                                        <span>{text}</span>
+                                    </div>
+                                ))}
+                            </motion.div>
                         </motion.div>
 
-                        {/* Stats Section */}
+                        {/* Right — Bloch Sphere */}
                         <motion.div
-                            variants={itemVariants}
-                            className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-12 border-t border-border/40 w-full max-w-3xl mx-auto"
+                            initial={{ opacity: 0, scale: 0.85 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 1, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                            className="relative flex items-center justify-center"
                         >
-                            <StatItem number="10k+" label="Experiments Run" delay={0} />
-                            <StatItem number="50+" label="Quantum Gates" delay={0.1} />
-                            <StatItem number="99%" label="Visualization Accuracy" delay={0.2} />
+                            <div className="relative w-[450px] h-[450px] rounded-full glass-panel quantum-glow-cyan flex items-center justify-center overflow-hidden p-8 backdrop-blur-2xl">
+                                <div className="w-full h-full rounded-full overflow-hidden">
+                                    <BlochSphere3D
+                                        theta={rotation.x * 20}
+                                        phi={rotation.y * 20}
+                                        autoRotate={true}
+                                        showAxes={true}
+                                    />
+                                </div>
+                            </div>
+                            {/* Floating info chips */}
+                            {[
+                                { label: '|ψ⟩ Superposition', x: '-20%', y: '15%',  delay: 0.8 },
+                                { label: 'Entangled',          x: '85%',  y: '65%',  delay: 1.0 },
+                                { label: 'Aer Simulator',      x: '-10%', y: '78%',  delay: 1.2 },
+                            ].map(({ label, x, y, delay }) => (
+                                <motion.div
+                                    key={label}
+                                    initial={{ opacity: 0, scale: 0.6 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ duration: 0.5, delay }}
+                                    style={{ position: 'absolute', left: x, top: y }}
+                                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-primary/20 bg-card text-primary whitespace-nowrap float-badge"
+                                >
+                                    {label}
+                                </motion.div>
+                            ))}
                         </motion.div>
-                    </motion.div>
-
-                    {/* 3D Visual Hero REMOVED as per user request */}
-                    <div className="hidden lg:block"></div>
-                </div>
-
-                {/* Features Scroll Section */}
-                <div id="features" className="relative py-24">
-                    <div className="text-center max-w-3xl mx-auto mb-20 space-y-4">
-                        <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-none px-4 py-1.5 text-sm font-medium rounded-full">
-                            Features
-                        </Badge>
-                        <h2 className="text-4xl md:text-5xl font-bold font-outfit">
-                            Everything needed to master <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
-                                Quantum Mechanics
-                            </span>
-                        </h2>
-                        <p className="text-muted-foreground text-lg">
-                            Powerful tools designed for researchers, students, and enthusiasts alike.
-                        </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {features.map((feature, index) => (
-                            <FeatureCard
-                                key={index}
-                                icon={feature.icon}
-                                title={feature.title}
-                                description={feature.description}
-                                color={feature.color}
-                                delay={index * 0.1}
-                            />
+                    {/* Scroll indicator */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 2 }}
+                        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-muted-foreground/50 text-xs"
+                    >
+                        <span>Scroll to explore</span>
+                        <motion.div
+                            animate={{ y: [0, 8, 0] }}
+                            transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+                        >
+                            <ChevronDown className="w-4 h-4" />
+                        </motion.div>
+                    </motion.div>
+                </motion.div>
+            </section>
+
+            {/* ── Stats Bar ─────────────────────────────────────────────────────── */}
+            <section className="relative py-16 border-y border-border bg-muted/20 overflow-hidden">
+                <div className="data-stream-line" />
+                <div className="container mx-auto px-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                        {STATS.map(({ value, suffix, label }) => (
+                            <motion.div
+                                key={label}
+                                initial={{ opacity: 0, y: 16 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 0.5 }}
+                                className="text-center"
+                            >
+                                <p className="text-3xl lg:text-4xl font-bold text-foreground mb-1">
+                                    <AnimatedCounter target={value} suffix={suffix} />
+                                </p>
+                                <p className="text-sm text-muted-foreground font-medium">{label}</p>
+                            </motion.div>
                         ))}
                     </div>
                 </div>
+            </section>
 
-                {/* Call to Action */}
-                <div className="mt-20 relative rounded-3xl overflow-hidden p-12 text-center bg-gradient-sphere">
-                    <div className="absolute inset-0 bg-white/10 backdrop-blur-3xl" />
-                    <div className="relative z-10 space-y-8">
-                        <h2 className="text-3xl md:text-5xl font-bold text-white font-outfit">
-                            Ready to explore the unknown?
+            {/* ── Features ──────────────────────────────────────────────────────── */}
+            <section id="features" className="py-28 relative">
+                <div className="absolute inset-0 quantum-grid-bg opacity-20 pointer-events-none" />
+                <div className="container mx-auto px-6 relative">
+                    <motion.div
+                        initial={{ opacity: 0, y: 24 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.6 }}
+                        className="text-center mb-16 space-y-4"
+                    >
+                        <Badge variant="outline" className="gap-2 border-accent/30 bg-accent/5 text-accent">
+                            <Layers className="w-3.5 h-3.5" />
+                            Full Feature Suite
+                        </Badge>
+                        <h2 className="text-4xl lg:text-5xl font-bold tracking-tight">
+                            Everything you need to<br />
+                            <span className="text-primary">explore quantum computing</span>
                         </h2>
-                        <p className="text-white/80 text-lg max-w-2xl mx-auto">
-                            Join thousands of others visualizing the future of computing today.
-                            No account required to start simulating.
+                        <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+                            A complete quantum development environment — from circuit design to
+                            advanced analytics — running entirely on your local machine.
                         </p>
-                        <Button
-                            className="h-14 px-10 rounded-full bg-white text-purple-600 hover:bg-white/90 font-semibold text-lg hover:scale-105 transition-all shadow-xl"
-                            onClick={() => navigate('/workspace')}
-                        >
-                            Launch Workspace
-                        </Button>
+                    </motion.div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                        {FEATURES.map(f => <FeatureCard key={f.title} {...f} />)}
                     </div>
                 </div>
-            </main>
+            </section>
 
-            <footer className="border-t border-border/40 bg-muted/30">
-                <div className="container mx-auto px-6 py-12 text-center">
-                    <div className="flex items-center justify-center gap-2 mb-4 opacity-80">
-                        <Box className="w-6 h-6 text-primary" />
-                        <span className="font-bold font-outfit text-xl">BlochVerse</span>
+            {/* ── CTA ───────────────────────────────────────────────────────────── */}
+            <section className="py-28 relative overflow-hidden">
+                <div className="absolute inset-0 bg-background" />
+                <div className="container mx-auto px-6 relative text-center space-y-8">
+                    <motion.div
+                        initial={{ opacity: 0, y: 24 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.7 }}
+                        className="space-y-6"
+                    >
+                        <div className="w-20 h-20 mx-auto rounded-md bg-card border border-border flex items-center justify-center">
+                            <Atom className="w-10 h-10 text-primary" />
+                        </div>
+                        <h2 className="text-4xl lg:text-5xl font-bold tracking-tight">
+                            Ready to start<br />
+                            <span className="text-primary">exploring quantum worlds?</span>
+                        </h2>
+                        <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                            No sign-up. No cloud account. No token required.
+                            Just open the workspace and start building.
+                        </p>
+                        <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+                            <Button
+                                id="cta-launch-btn"
+                                size="lg"
+                                onClick={() => navigate('/workspace')}
+                                className="gap-3 px-12 py-7 text-lg font-semibold rounded-md shadow-sm hover:bg-primary/90 transition-colors duration-200"
+                            >
+                                <CircuitBoard className="w-6 h-6" />
+                                Open Workspace
+                                <ArrowRight className="w-5 h-5" />
+                            </Button>
+                        </motion.div>
+                    </motion.div>
+                </div>
+            </section>
+
+            {/* ── Footer ────────────────────────────────────────────────────────── */}
+            <footer className="border-t border-border/30 py-10 text-center text-muted-foreground text-sm">
+                <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 font-medium text-foreground">
+                        <CircuitBoard className="w-4 h-4 text-primary" />
+                        Quantum State Visualizer
                     </div>
-                    <p className="text-muted-foreground text-sm">
-                        © {new Date().getFullYear()} Quantum State Visualizer. Crafted with <span className="text-red-400">❤</span> for science.
-                    </p>
+                    <p>Built with Qiskit · React · Three.js · Framer Motion</p>
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        <span className="text-green-600 dark:text-green-400 font-medium">Local Simulator Active</span>
+                    </div>
                 </div>
             </footer>
         </div>
     );
 };
-
-const StatItem = ({ number, label, delay }: { number: string; label: string; delay: number }) => (
-    <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ delay, duration: 0.5 }}
-        className="text-center"
-    >
-        <div className="text-3xl font-bold font-outfit text-foreground mb-1">{number}</div>
-        <div className="text-sm text-muted-foreground font-medium">{label}</div>
-    </motion.div>
-);
-
-const FloatingCard = ({ icon, text, className, delay }: { icon: React.ReactNode; text: string; className: string; delay: number }) => (
-    <motion.div
-        className={`bg-card/80 backdrop-blur-md border border-border/50 p-4 rounded-xl shadow-lg flex items-center gap-3 ${className}`}
-        animate={{
-            y: [0, -10, 0],
-        }}
-        transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay
-        }}
-    >
-        <div className="p-2 bg-background rounded-lg shadow-sm">
-            {icon}
-        </div>
-        <span className="font-medium text-sm text-foreground pr-2">{text}</span>
-    </motion.div>
-);
-
-const FeatureCard = ({ icon, title, description, color, delay }: any) => (
-    <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ delay, duration: 0.5 }}
-        whileHover={{ y: -5 }}
-    >
-        <Card className="h-full border-transparent bg-white/50 hover:bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 backdrop-blur-xl group overflow-hidden">
-            <div className={`absolute top-0 left-0 w-1 h-full bg-gradient-to-b ${color}`} />
-            <CardContent className="p-8">
-                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${color} bg-opacity-10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-md`}>
-                    <div className="text-white">
-                        {React.cloneElement(icon, { className: "w-7 h-7" })}
-                    </div>
-                </div>
-                <h3 className="text-xl font-bold mb-3 font-outfit group-hover:text-primary transition-colors">{title}</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                    {description}
-                </p>
-            </CardContent>
-        </Card>
-    </motion.div>
-);
-
-const features = [
-    {
-        icon: <Box />,
-        title: "3D Bloch Sphere",
-        description: "Interactive real-time visualization of single-qubit states with full 360° rotation and phase indicators.",
-        color: "from-cyan-400 to-blue-500"
-    },
-    {
-        icon: <Cpu />,
-        title: "Circuit Builder",
-        description: "Professional drag-and-drop interface. Build, edit, and test quantum circuits with immediate feedback.",
-        color: "from-purple-400 to-indigo-500"
-    },
-    {
-        icon: <Activity />,
-        title: "Live Simulation",
-        description: "High-performance simulation engine for testing algorithms before running on actual hardware.",
-        color: "from-pink-400 to-rose-500"
-    },
-    {
-        icon: <Globe />,
-        title: "IBM Integration",
-        description: "Connect directly to IBM Quantum Experience to run your circuits on real quantum computers.",
-        color: "from-blue-400 to-cyan-500"
-    },
-    {
-        icon: <Share2 />,
-        title: "Collaboration",
-        description: "Export your experiments to QASM, share via unique links, or generate report-ready visualizations.",
-        color: "from-violet-400 to-purple-500"
-    },
-    {
-        icon: <Brain />,
-        title: "AI Assistant",
-        description: "Smart debugging suggestions and circuit optimization tips powered by advanced AI models.",
-        color: "from-fuchsia-400 to-pink-500"
-    }
-];
 
 export default Landing;

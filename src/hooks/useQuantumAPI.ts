@@ -47,7 +47,6 @@ export const queryKeys = {
     ['simulation', circuit, backend, shots] as const,
   ibmJob: (jobId: string) => ['ibm-job', jobId] as const,
   aiQuestion: (question: string) => ['ai-question', question] as const,
-  medicalStatus: ['medical-status'] as const,
   workerStatus: ['worker-status'] as const,
   quantumML: {
     datasets: ['quantum-ml', 'datasets'] as const,
@@ -219,18 +218,6 @@ export const useAIQuestion = () => {
       // Cache the AI response
       queryClient.setQueryData(queryKeys.aiQuestion(question), data);
     },
-  });
-};
-
-// Medical Status Hook
-export const useMedicalStatus = () => {
-  return useQuery({
-    queryKey: queryKeys.medicalStatus,
-    queryFn: async () => {
-      const response = await apiClient.get('/api/medical/status');
-      return response.data;
-    },
-    staleTime: 30000, // 30 seconds
   });
 };
 

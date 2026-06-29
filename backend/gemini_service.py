@@ -2,6 +2,8 @@ import os
 import google.generativeai as genai
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+import base64
+import io
 from container import container
 from dotenv import load_dotenv
 
@@ -20,8 +22,10 @@ class GeminiService:
             print(f"DEBUG: API Key length: {len(self.api_key)}")
             try:
                 genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel('gemini-2.5-flash')
-                print(f"SUCCESS: Gemini AI Service Activated (Model: gemini-2.5-flash)")
+                # Use gemini-1.5-flash as it is more stable and has vision support
+                self.model_name = 'gemini-1.5-flash'
+                self.model = genai.GenerativeModel(self.model_name)
+                print(f"SUCCESS: Gemini AI Service Activated (Model: {self.model_name})")
             except Exception as e:
                 print(f"ERROR: Failed to configure Gemini: {e}")
                 self.model = None
@@ -68,6 +72,36 @@ class GeminiService:
             traceback.print_exc()
             container.logger().error("gemini_generation_failed", error=str(e))
             return f"Error generating response from Gemini: {str(e)}"
+
+    async def analyze_image(self, base64_image: str, prompt: str = "Describe what you see on the screen in detail.") -> str:
+        """
+        Analyze an image using Gemini Vision capabilities
+        """
+        if not self.api_key or not self.model:
+            return "Gemini API not configured."
+
+        try:
+            # Handle data URL prefix if present
+            if "," in base64_image:
+                base64_image = base64_image.split(",")[1]
+            
+            image_data = base64.b64decode(base64_image)
+            
+            # Use PIL to verify/process image if needed, but Gemini API can take bytes/dicts
+            contents = [
+                prompt,
+                {
+                    "mime_type": "image/png",
+                    "data": image_data
+                }
+            ]
+            
+            response = await self.model.generate_content_async(contents)
+            return response.text
+        except Exception as e:
+            print(f"ERROR: Image analysis failed: {e}")
+            container.logger().error("gemini_vision_failed", error=str(e))
+            return f"Error analyzing image: {str(e)}"
 
     def is_configured(self) -> bool:
         return self.api_key is not None and self.model is not None

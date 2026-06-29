@@ -34,7 +34,8 @@ export function ThemeProvider({
   useEffect(() => {
     const root = window.document.documentElement
 
-    root.classList.remove("quantum-light", "quantum-dark", "cosmic")
+    // Remove all theme classes
+    root.classList.remove("quantum-light", "quantum-dark", "cosmic", "dark")
 
     if (theme === "system") {
       const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
@@ -43,10 +44,18 @@ export function ThemeProvider({
         : "quantum-light"
 
       root.classList.add(systemTheme)
+      // Add 'dark' class for Tailwind's dark: variant
+      if (systemTheme === "quantum-dark") {
+        root.classList.add("dark")
+      }
       return
     }
 
     root.classList.add(theme)
+    // Add 'dark' class for Tailwind's dark: variant when using dark themes
+    if (theme === "quantum-dark" || theme === "cosmic") {
+      root.classList.add("dark")
+    }
   }, [theme])
 
   const value = {

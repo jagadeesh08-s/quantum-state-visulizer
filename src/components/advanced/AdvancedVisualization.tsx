@@ -296,7 +296,7 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
     if (!vizState.showProbabilities) return null;
 
     return (
-      <Card className="border border-slate-700 bg-slate-900/95 backdrop-blur-sm shadow-xl h-full">
+      <Card className="solid-panel h-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-3 text-white text-lg font-bold">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -470,7 +470,7 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <Card className="border border-slate-700 bg-slate-900/95 backdrop-blur-sm shadow-xl rounded-2xl">
+          <Card className="solid-panel rounded-md">
             <CardHeader className="pb-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -699,7 +699,7 @@ const AdvancedVisualization: React.FC<AdvancedVisualizationProps> = React.memo((
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.4 }}
             >
-              <Card className="border border-slate-700 bg-slate-900/95 backdrop-blur-sm shadow-xl">
+              <Card className="solid-panel">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-3 text-white text-lg font-bold">
                     <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">

@@ -28,7 +28,6 @@ export default {
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
 					foreground: 'hsl(var(--primary-foreground))',
-					glow: 'hsl(var(--primary-glow))'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -45,7 +44,6 @@ export default {
 				accent: {
 					DEFAULT: 'hsl(var(--accent))',
 					foreground: 'hsl(var(--accent-foreground))',
-					glow: 'hsl(var(--accent-glow))'
 				},
 				popover: {
 					DEFAULT: 'hsl(var(--popover))',
@@ -56,71 +54,27 @@ export default {
 					foreground: 'hsl(var(--card-foreground))'
 				}
 			},
-			backgroundImage: {
-				'gradient-quantum': 'var(--gradient-quantum)',
-				'gradient-sphere': 'var(--gradient-sphere)',
-				'gradient-hero': 'var(--gradient-hero)'
+			borderRadius: {
+				lg: "var(--radius)",
+				md: "calc(var(--radius) - 2px)",
+				sm: "calc(var(--radius) - 4px)",
 			},
-			boxShadow: {
-				'quantum': 'var(--glow-primary)',
-				'quantum-accent': 'var(--glow-accent)',
-				'quantum-sphere': 'var(--glow-sphere)'
-			},
-			animation: {
-				'quantum-spin': 'quantum-spin 20s linear infinite',
-				'quantum-pulse': 'quantum-pulse 3s infinite',
-				'quantum-float': 'quantum-float 4s ease-in-out infinite',
-				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out',
-				'pulse': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+			fontFamily: {
+				sans: ['Outfit', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
 			},
 			keyframes: {
-				'quantum-spin': {
-					from: { transform: 'rotate(0deg)' },
-					to: { transform: 'rotate(360deg)' }
-				},
-				'quantum-pulse': {
-					'0%, 100%': {
-						boxShadow: '0 0 0 0 hsl(195 100% 50% / 0.4)',
-						transform: 'scale(1)'
-					},
-					'50%': {
-						boxShadow: '0 0 0 20px hsl(195 100% 50% / 0)',
-						transform: 'scale(1.02)'
-					}
-				},
-				'quantum-float': {
-					'0%, 100%': { transform: 'translateY(0px)' },
-					'50%': { transform: 'translateY(-10px)' }
-				},
 				'accordion-down': {
-					from: {
-						height: '0'
-					},
-					to: {
-						height: 'var(--radix-accordion-content-height)'
-					}
+					from: { height: '0' },
+					to: { height: 'var(--radix-accordion-content-height)' }
 				},
 				'accordion-up': {
-					from: {
-						height: 'var(--radix-accordion-content-height)'
-					},
-					to: {
-						height: '0'
-					}
-				},
-				'pulse': {
-					'0%, 100%': { opacity: '1' },
-					'50%': { opacity: '0.7' }
+					from: { height: 'var(--radix-accordion-content-height)' },
+					to: { height: '0' }
 				}
 			},
-			backdropBlur: {
-				'xs': '2px',
-				'3xl': '64px',
-			},
-			transitionDelay: {
-				'500': '500ms',
-				'1000': '1000ms',
+			animation: {
+				'accordion-down': 'accordion-down 0.2s ease-out',
+				'accordion-up': 'accordion-up 0.2s ease-out',
 			}
 		}
 	},
