@@ -613,7 +613,6 @@ qc = QuantumCircuit(${circuit.numQubits})
                 {[
                   { value: 'circuit', label: 'Circuit Builder', icon: <Palette className="w-4 h-4" /> },
                   { value: 'code', label: 'Code Editor', icon: <Code className="w-4 h-4" /> },
-                  { value: 'visualization', label: 'Visualize', icon: <BarChart3 className="w-4 h-4" /> },
                   { value: 'analytics', label: 'Analytics', icon: <TrendingUp className="w-4 h-4" /> },
                   { value: 'vqe', label: 'VQE Model', icon: <Atom className="w-4 h-4" /> },
                   { value: 'noise', label: 'Noise Simulator', icon: <Zap className="w-4 h-4" /> },
@@ -1222,14 +1221,6 @@ qc = QuantumCircuit(${circuit.numQubits})
                           setCircuitLoadMessageShown(true);
                         }
                       }}
-                    />
-                  </TabsContent>
-
-                  {/* Advanced Visualization */}
-                  <TabsContent value="visualization" className="space-y-6">
-                    <AdvancedVisualization
-                      circuit={currentCircuit}
-                      results={reducedStates}
                     />
                   </TabsContent>
 
