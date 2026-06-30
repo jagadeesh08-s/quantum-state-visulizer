@@ -277,10 +277,12 @@ def execute_circuit(circuit_data: Dict[str, Any]) -> Dict[str, Any]:
 
         if noise_config.get('enabled', False):
             noise_type = noise_config.get('type', 'ibm')
-            if noise_type == 'ibm':
+            if noise_type in ('ibm', 'realistic_ibm_guadalupe', 'superconducting'):
                 noise_params = get_ibm_noise_params()
-            elif noise_type == 'ion_trap':
+            elif noise_type in ('ion_trap', 'trapped_ion'):
                 noise_params = get_ion_trap_noise_params()
+            elif noise_type == 'zero-noise_extrapolation':
+                noise_params = None # Handled gracefully as no noise for ZNE or perfect
             elif noise_type == 'custom':
                 # Allow custom noise parameters
                 noise_params = NoiseParameters(

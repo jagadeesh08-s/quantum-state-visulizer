@@ -49,21 +49,22 @@ export const IBMQuantumConnection: React.FC<IBMQuantumConnectionProps> = ({ isOp
 
             // Push Gemini key to backend at runtime if possible
             if (geminiKey.trim()) {
-                try {
-                    const res = await fetch(`${BACKEND_URL}/api/update-config`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ gemini_api_key: geminiKey.trim() }),
-                    });
-                    const data = await res.json();
+                fetch(`${BACKEND_URL}/api/update-config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gemini_api_key: geminiKey.trim() }),
+                })
+                .then(res => res.json())
+                .then(data => {
                     if (data.success) {
                         toast.success('Settings saved & applied!');
                     } else {
                         toast.success('Saved locally. Restart backend to apply AI key.');
                     }
-                } catch {
+                })
+                .catch(() => {
                     toast.success('Saved locally. Backend not reachable.');
-                }
+                });
             } else {
                 toast.success('Settings saved.');
             }
